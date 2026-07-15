@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "apify": {
+      "_comment": "Apify MCP - 抖音数据抓取必需依赖。注册：https://console.apify.com/sign-up",
+      "_comment2": "拿 token：https://console.apify.com/account/integrations",
+      "command": "npx",
+      "args": ["-y", "@apify/mcp-server"],
+      "env": {
+        "APIFY_TOKEN": "apify_api_你的token_在这里"
+      }
+    }
+  }
+}

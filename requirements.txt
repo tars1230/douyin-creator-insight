@@ -1,0 +1,40 @@
+# Douyin Creator Insight - Python 依赖
+# Python 3.10+ 推荐（dataclasses + typing.Optional 新语法）
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 核心依赖（必需）
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 当前实现零三方依赖 — 全部用 Python 标准库：
+#   - dataclasses  (数据结构)
+#   - html.escape  (HTML 转义)
+#   - json / re / pathlib  (序列化、正则、路径)
+#   - urllib.request  (HTTP)
+#
+# 所以「最小可运行」状态下，pip install -r requirements.txt 是空的。
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 可选依赖（按需安装）
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 更美观的报告模板渲染（assets/ 里默认就用这个）
+# jinja2==3.1.4
+
+# 灵活的日期解析（视频发布时间处理）
+# python-dateutil==2.9.0
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 不需要这些
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# ❌ pydantic — 我们用 dataclasses（无三方依赖）
+# ❌ Apify SDK — Apify 调用通过 MCP 在 WorkBuddy 端注入，脚本层不需要 SDK
+# ❌ PDF 库 — douyin 流程不涉及 PDF
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# WorkBuddy MCP 依赖（不在 Python 端安装）
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# 真实抓取需要 Apify MCP 在 WorkBuddy 客户端可用。
+# 配置示例见仓库根目录的 mcp.json.example。
+# Apify token 注册：https://console.apify.com/account/integrations

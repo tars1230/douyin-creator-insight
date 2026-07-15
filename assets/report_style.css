@@ -1,0 +1,169 @@
+/*
+报告样式（参考用）
+
+当前实现：scripts/report_builder.py 内置 CSS，这里只是参考文件。
+如果需要自定义，复制后修改并传入 jinja2 渲染。
+*/
+
+/* 主体 */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 100%);
+    color: #1a202c;
+    line-height: 1.7;
+    font-size: 15px;
+    margin: 0;
+    padding: 0;
+}
+
+/* 容器 */
+.container {
+    max-width: 920px;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 0 30px rgba(0,0,0,.06);
+}
+
+/* Hero 头部 */
+header.hero {
+    background: linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%);
+    color: white;
+    padding: 50px 40px 40px;
+}
+
+header.hero h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+}
+
+/* 创作者数据卡片 */
+.creator-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    background: rgba(255,255,255,.12);
+    padding: 18px;
+    border-radius: 12px;
+}
+
+.stat .num {
+    font-size: 22px;
+    font-weight: 700;
+    display: block;
+}
+
+.stat .lbl {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 4px;
+}
+
+/* 章节 */
+section {
+    padding: 40px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+section h2 {
+    font-size: 22px;
+    color: #1e293b;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid #5b21b6;
+    display: inline-block;
+}
+
+/* 视频卡片 */
+.video-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 12px 0;
+}
+
+.video-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.video-meta .likes {
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.video-meta .collects {
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+/* 转写框 */
+.transcript-box {
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding: 12px 16px;
+    margin-top: 10px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+/* 标签 */
+.tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #ede9fe;
+    color: #5b21b6;
+    border-radius: 10px;
+    font-size: 11px;
+    margin-right: 4px;
+}
+
+/* 表格 */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13px;
+}
+
+th {
+    background: #1e3a8a;
+    color: white;
+    padding: 9px;
+    text-align: left;
+    font-weight: 600;
+}
+
+td {
+    padding: 8px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+}
+
+td.likes { color: #ef4444; font-weight: 600; }
+td.collects { color: #f59e0b; font-weight: 600; }
+
+/* 底部 */
+footer {
+    background: #0f172a;
+    color: #94a3b8;
+    padding: 28px 40px;
+    text-align: center;
+    font-size: 12px;
+}
+
+/* 按钮 */
+.toggle-btn {
+    background: #5b21b6;
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-top: 8px;
+}

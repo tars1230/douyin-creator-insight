@@ -1,0 +1,38 @@
+<!--
+HTML 报告模板（参考用）
+
+当前实现：scripts/report_builder.py 使用内置 Python str.format() 模板，
+所以本文件不是必需的。如果想用 jinja2 渲染，可以参考本文件改造。
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>{{ nickname }} · 抖音内容洞察报告</title>
+<style>
+body { font-family: -apple-system, sans-serif; }
+.container { max-width: 920px; margin: 0 auto; }
+header.hero { background: linear-gradient(135deg, #1e3a8a 0%, #5b21b6 100%); color: white; padding: 40px; }
+.video-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin: 12px 0; }
+.transcript-box { background: #fffbeb; border-left: 3px solid #f59e0b; padding: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+<header class="hero">
+    <h1>{{ nickname }}</h1>
+    <p>粉丝: {{ followers }} | 获赞: {{ hearts }} | 视频: {{ video_count }}</p>
+</header>
+
+<section>
+    <h2>🎙️ 精华转写</h2>
+    {% for t in transcripts %}
+    <div class="video-card">
+        <h3>{{ t.aweme_id }}</h3>
+        <div class="transcript-box">{{ t.text }}</div>
+    </div>
+    {% endfor %}
+</section>
+</div>
+</body>
+</html>

@@ -1,0 +1,80 @@
+{
+  "_comment": "Sample JSON 数据包（脱敏示例）。展示 douyin-creator-insight 的输出结构。",
+  "_schema_version": "1.0.0",
+  "_data_source": "Apify MCP (zen-studio/douyin-profile-scraper + zen-studio/douyin-transcripts-scraper)",
+  "_generated_at": "2026-07-15T12:00:00Z",
+  "creator": {
+    "creator_query": "[示例主页 URL]",
+    "matched": true,
+    "confidence": 1.0,
+    "sec_uid": "[脱敏]",
+    "douyin_id": "[脱敏]",
+    "nickname": "[示例博主]",
+    "profile_url": "https://www.douyin.com/user/[脱敏]",
+    "followers_count": 333000,
+    "heart_count": 2670000,
+    "aweme_count": 200,
+    "signature": "[博主自述简介]"
+  },
+  "videos": [
+    {
+      "aweme_id": "[脱敏_001]",
+      "title": "[示例视频标题 1]",
+      "desc": "[示例视频描述]",
+      "create_time": 1717800000,
+      "create_date": "2026-06-08",
+      "duration_ms": 120000,
+      "stats": {
+        "digg_count": 120000,
+        "comment_count": 3000,
+        "collect_count": 8000,
+        "share_count": 1500,
+        "play_count": 2500000
+      },
+      "hashtags": [{"name": "[示例 hashtag]"}],
+      "share_url": "https://www.douyin.com/video/[脱敏_001]",
+      "engagement_score": 21.8
+    }
+  ],
+  "essentials": [
+    {
+      "rank": 1,
+      "aweme_id": "[脱敏_001]",
+      "title": "[示例视频标题 1]",
+      "engagement_score": 21.8,
+      "transcript_status": "success",
+      "transcript_text": "[示例视频转写片段]"
+    }
+  ],
+  "transcripts": [
+    {
+      "aweme_id": "[脱敏_001]",
+      "status": "success",
+      "duration_sec": 120.5,
+      "language": "zh",
+      "text": "[完整转写文本]",
+      "segments": [
+        {"start": 0.0, "end": 5.2, "text": "[转写片段 1]"},
+        {"start": 5.2, "end": 12.0, "text": "[转写片段 2]"}
+      ]
+    }
+  ],
+  "categories": {
+    "[分类 1]": ["[脱敏_001]", "[脱敏_002]"],
+    "[分类 2]": ["[脱敏_003]"],
+    "[分类 3]": ["[脱敏_004]"],
+    "[分类 4]": ["[脱敏_005]"],
+    "[分类 5]": [],
+    "其他": []
+  },
+  "metadata": {
+    "max_videos_requested": 200,
+    "max_videos_returned": 200,
+    "transcript_count_requested": 5,
+    "transcript_count_returned": 4,
+    "transcript_empty_count": 1,
+    "actor_profile_used": "zen-studio/douyin-profile-scraper",
+    "actor_transcript_used": "zen-studio/douyin-transcripts-scraper",
+    "estimated_cost_usd": 1.6
+  }
+}

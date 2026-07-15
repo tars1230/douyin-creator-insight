@@ -1,0 +1,183 @@
+<!--
+Sample HTML 报告（脱敏 demo）
+
+这是一个演示报告，展示了 douyin-creator-insight 的输出结构。
+所有数据已脱敏处理：
+- ❌ 真实抖音号 / sec_uid
+- ❌ 真实微信号 / 手机号
+- ❌ 真实私信 / 评论内容
+
+可以看到：
+- 5 段式报告结构（封面 / 画像 / Top 互动 / 精华转写 / 分类摘要）
+- 自适应设计（桌面 + 移动）
+- 数据可视化的 CSS 模式
+-->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>[脱敏示例] 抖音内容洞察报告 · v1.0</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 100%);
+    color: #1a202c;
+    line-height: 1.7;
+    padding: 24px 16px 60px;
+}
+.container { max-width: 920px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.06); }
+
+header.hero {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #5b21b6 100%);
+    color: white;
+    padding: 48px 36px;
+}
+header.hero h1 { font-size: 28px; margin-bottom: 8px; }
+header.hero .meta { font-size: 14px; opacity: 0.85; margin-bottom: 24px; }
+.author-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: rgba(255,255,255,0.1); padding: 18px; border-radius: 12px; backdrop-filter: blur(10px); }
+.stat { text-align: center; }
+.stat .num { font-size: 22px; font-weight: 700; }
+.stat .label { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+
+section { padding: 32px 36px; border-bottom: 1px solid #f0f3f7; }
+section h2 { font-size: 20px; color: #1e3a8a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e4ecf7; }
+
+.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.profile-card { background: #f8fafc; padding: 14px; border-radius: 8px; border-left: 3px solid #5b21b6; }
+.profile-card .key { font-size: 12px; color: #888; margin-bottom: 4px; }
+.profile-card .val { font-size: 14px; color: #1a202c; font-weight: 500; }
+
+.video-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+.video-card .title { font-size: 15px; font-weight: 600; color: #1e3a8a; margin-bottom: 8px; }
+.video-card .stats { display: flex; gap: 14px; font-size: 13px; color: #666; margin-bottom: 8px; }
+.video-card .stats span { padding: 2px 8px; background: white; border-radius: 4px; }
+.transcript-box { background: #fffbeb; border-left: 3px solid #f59e0b; padding: 14px; margin-top: 10px; border-radius: 0 8px 8px 0; font-size: 14px; color: #444; line-height: 1.8; }
+.transcript-box.empty { background: #f3f4f6; border-left-color: #9ca3af; color: #888; font-style: italic; }
+
+.category-tag { display: inline-block; padding: 4px 12px; background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; border-radius: 16px; font-size: 13px; margin: 4px 6px 4px 0; font-weight: 500; }
+.tag-row { margin-top: 8px; }
+
+footer { padding: 24px 36px; background: #f8fafc; color: #888; font-size: 12px; text-align: center; }
+.badge { display: inline-block; padding: 2px 8px; background: rgba(255,255,255,0.2); border-radius: 4px; font-size: 11px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="hero">
+    <h1>[脱敏示例] 抖音博主内容洞察报告</h1>
+    <div class="meta">📊 数据时点：2026-07-15 ｜ 视频样本：200 条 ｜ 精华转写：5 条</div>
+    <div class="author-card">
+        <div class="stat"><div class="num">33.3<span style="font-size:14px;">万</span></div><div class="label">粉丝</div></div>
+        <div class="stat"><div class="num">267<span style="font-size:14px;">万</span></div><div class="label">累计获赞</div></div>
+        <div class="stat"><div class="num">200</div><div class="label">本次抓取视频</div></div>
+        <div class="stat"><div class="num">⭐⭐⭐⭐⭐</div><div class="label">博主量级</div></div>
+    </div>
+</header>
+
+<section>
+    <h2>👤 博主画像</h2>
+    <div class="profile-grid">
+        <div class="profile-card"><div class="key">昵称</div><div class="val">[示例博主]</div></div>
+        <div class="profile-card"><div class="key">抖音号</div><div class="val">[脱敏]</div></div>
+        <div class="profile-card"><div class="key">sec_uid</div><div class="val">[脱敏]</div></div>
+        <div class="profile-card"><div class="key">主页 URL</div><div class="val">https://www.douyin.com/user/[脱敏]</div></div>
+        <div class="profile-card"><div class="key">签名</div><div class="val">[博主自述简介]</div></div>
+        <div class="profile-card"><div class="key">认证</div><div class="val">[认证类型]</div></div>
+        <div class="profile-card"><div class="key">最新更新时间</div><div class="val">2026-07-XX</div></div>
+        <div class="profile-card"><div class="key">活跃度</div><div class="val">[高 / 中 / 低]</div></div>
+    </div>
+</section>
+
+<section>
+    <h2>🔥 互动 Top 5 视频</h2>
+
+    <div class="video-card">
+        <div class="title">1. [示例视频标题 1]</div>
+        <div class="stats">
+            <span>👍 [脱敏] 赞</span>
+            <span>💬 [脱敏] 评论</span>
+            <span>⭐ [脱敏] 收藏</span>
+            <span>🔁 [脱敏] 分享</span>
+            <span>👁️ [脱敏] 播放</span>
+        </div>
+        <div class="transcript-box">[示例视频转写片段...展示博主的核心观点和叙事节奏]</div>
+    </div>
+
+    <div class="video-card">
+        <div class="title">2. [示例视频标题 2]</div>
+        <div class="stats">
+            <span>👍 [脱敏]</span>
+            <span>💬 [脱敏]</span>
+            <span>⭐ [脱敏]</span>
+        </div>
+        <div class="transcript-box">[示例视频转写片段]</div>
+    </div>
+
+    <div class="video-card">
+        <div class="title">3. [示例视频标题 3]</div>
+        <div class="stats">
+            <span>👍 [脱敏]</span>
+            <span>💬 [脱敏]</span>
+            <span>⭐ [脱敏]</span>
+        </div>
+        <div class="transcript-box empty">[empty_transcript] 该视频无人声旁白，可能是纯配乐+字幕视频</div>
+    </div>
+
+    <div class="video-card">
+        <div class="title">4. [示例视频标题 4]</div>
+        <div class="stats">
+            <span>👍 [脱敏]</span>
+            <span>💬 [脱敏]</span>
+            <span>⭐ [脱敏]</span>
+        </div>
+        <div class="transcript-box">[示例视频转写片段]</div>
+    </div>
+
+    <div class="video-card">
+        <div class="title">5. [示例视频标题 5]</div>
+        <div class="stats">
+            <span>👍 [脱敏]</span>
+            <span>💬 [脱敏]</span>
+            <span>⭐ [脱敏]</span>
+        </div>
+        <div class="transcript-box">[示例视频转写片段]</div>
+    </div>
+</section>
+
+<section>
+    <h2>🏷️ 内容分类摘要</h2>
+    <p style="font-size: 14px; color: #555; margin-bottom: 12px;">基于 hashtags + series + 标题 + 转写自动归类（共 X 个分类）：</p>
+    <div class="tag-row">
+        <span class="category-tag">[分类 1] · 50 条</span>
+        <span class="category-tag">[分类 2] · 30 条</span>
+        <span class="category-tag">[分类 3] · 25 条</span>
+        <span class="category-tag">[分类 4] · 20 条</span>
+        <span class="category-tag">[分类 5] · 15 条</span>
+        <span class="category-tag" style="background: #f3f4f6; color: #6b7280;">其他 · 60 条</span>
+    </div>
+    <p style="font-size: 13px; color: #888; margin-top: 16px;">
+        💡 <strong>互动规律：</strong>[基于互动分公式的分析，识别高传播内容的共性]
+    </p>
+</section>
+
+<section>
+    <h2>📌 4 周行动建议</h2>
+    <ol style="padding-left: 22px; font-size: 14px; color: #444;">
+        <li><strong>第 1 周：定位核心选题</strong> — 抓取 200 条视频 + 5 条精华转写，识别博主 Top 3 主题</li>
+        <li><strong>第 2 周：拆解爆款结构</strong> — 分析高互动视频的标题/封面/节奏共性</li>
+        <li><strong>第 3 周：内容日历对照</strong> — 把博主分类映射到你的内容赛道</li>
+        <li><strong>第 4 周：差异化定位</strong> — 基于报告输出你的差异化内容方向</li>
+    </ol>
+</section>
+
+<footer>
+    📦 报告生成自 <a href="https://github.com/tars1230/douyin-creator-insight" style="color: #5b21b6;">douyin-creator-insight v1.0.0</a> ·
+    数据源：Apify MCP ｜ 所有数据已脱敏
+</footer>
+
+</div>
+</body>
+</html>
