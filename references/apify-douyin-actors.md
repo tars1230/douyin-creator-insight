@@ -66,7 +66,7 @@ apify_caller(
 
 ### 2. `zen-studio/douyin-transcripts-scraper` ⭐ 主用转写
 
-**用途**：抓取视频语音转写（免费版不限时长）
+**用途**：抓取视频语音转写；当前限制以 Actor 页面为准
 
 **输入**：
 ```json
@@ -105,7 +105,7 @@ apify_caller(
 
 ### 3. `apple_yang/douyin-transcripts-scraper` 备选
 
-**用途**：更便宜的转写服务
+**用途**：备用转写服务
 
 **输入**：
 ```json
@@ -116,7 +116,7 @@ apify_caller(
 
 **输出**：同上
 
-**限制**：免费版仅支持 5 分钟以内视频
+**限制**：历史测试中长视频支持不稳定；当前限制以 Actor 页面为准
 
 **价格**：以 Apify Actor 当前页面为准。
 
@@ -129,7 +129,7 @@ apify_caller(
 
 ### `sian.agency/douyin-scraper`
 - 优点：支持 userVideos
-- 缺点：耗时（5+ 分钟），需要登录 cookies
+- 缺点：可能排队较久，且可能需要登录 cookies
 - 不推荐
 
 ### `apify--rag-web-browser`
@@ -145,9 +145,9 @@ apify_browser(
 
 ## 经验教训
 
-1. **优先用 zen-studio 系列**（不需要登录 cookies，5 分钟内返回）
+1. **优先用 zen-studio 系列**，但运行前核对当前访问要求与输入 schema
 2. **user_videos 模式 = 需要登录**（2026 现状）→ 慎用 bovi/sian.agency
-3. **转写超时**：长视频（> 5 分钟）走付费路径，免费版超时失败
+3. **转写超时**：降低样本或候选时长，并核对 Actor 当前限制
 4. **TOON 格式**：Apify 返回的是 TOON 格式，需要手动解析（见 `data-schema.md`）
 5. **字段 schema 不稳定**：不同 actor 返回字段名差异大，需要多别名解析（见 `parser.py::_extract_field`）
 
@@ -164,7 +164,7 @@ WebSearch + 用户手动提供数据
 ```
 zen-studio transcripts scraper (主)
   ↓ 失败
-apple_yang transcripts scraper (备，仅 5 分钟)
+apple_yang transcripts scraper (备用，限制以当前 Actor 页面为准)
   ↓ 失败
 跳过该视频，继续下一个
 ```

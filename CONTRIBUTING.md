@@ -70,15 +70,15 @@ videos = [Video(aweme_id='1', title='t', stats=VideoStats(digg_count=1000, comme
 print('OK:', select_essentials(videos, top_k=1))
 "
 
-# 跑端到端（需要 Apify token）
-python scripts/run_pipeline.py --creator <sec_uid> --max-videos 50
+# 检查 CLI 非联网路径
+python scripts/run_pipeline.py --creator <profile_url> --dry-run
 ```
 
 ### 3. 跑测试
 
 ```bash
-# 暂无正式单元测试，先跑 README 里的 "30 秒自检"
-python3 -c "import sys; sys.path.insert(0, 'scripts'); from schemas import *; print('✅ import OK')"
+python3 -m compileall -q scripts tests
+python3 -m unittest discover -s tests -v
 ```
 
 ### 4. 提交 PR

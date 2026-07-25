@@ -12,15 +12,13 @@ from schemas import Video, Transcript, TranscriptStatus
 TRANSCRIPT_ACTORS = [
     {
         "name": "zen-studio/douyin-transcripts-scraper",
-        "price_per_video": 0.009,
         "max_duration_minutes": None,  # 不限
         "language_param": "targetLanguage",
         "wait_secs": 45,
     },
     {
         "name": "apple_yang/douyin-transcripts-scraper",
-        "price_per_video": 0.001,
-        "max_duration_minutes": 5.0,  # 免费版 5 分钟
+        "max_duration_minutes": 5.0,
         "language_param": None,
         "wait_secs": 30,
     },
