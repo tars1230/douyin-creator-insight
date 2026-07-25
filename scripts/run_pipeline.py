@@ -5,6 +5,7 @@ CLI 入口：python run_pipeline.py --creator <douyin_id_or_sec_uid> --max-video
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -27,7 +28,7 @@ from report_builder import save_reports, build_html_report
 from quality_gate import run_quality_gate
 
 
-def dry_run_pipeline(
+def run_pipeline(
     creator_query: str,
     max_videos: int = 200,
     transcript_count: int = 5,
@@ -38,10 +39,10 @@ def dry_run_pipeline(
     apify_browser: Optional[Callable] = None,
 ):
     """
-    端到端编排（支持 dry-run）
+    端到端编排。
 
     Args:
-        apify_caller: 真实的 Apify MCP 调用函数，dry-run 模式下传 None
+        apify_caller: 兼容 Apify MCP 语义的调用函数；传 None 时只做 dry-run
         apify_browser: 真实的 Apify rag-web-browser 函数
     """
     if output_formats is None:
@@ -93,22 +94,22 @@ def dry_run_pipeline(
     if apify_caller is None:
         print()
         print("━" * 50)
-        print("⚠️  dry-run 模式（CLI 默认）")
+        print("⚠️  dry-run 模式")
         print("━" * 50)
         print()
-        print("📌 这是设计行为，不是 bug：CLI 模式下没有 Apify MCP 注入。")
+        print("📌 未调用外部服务，也不会生成真实调研报告。")
         print()
-        print("✅ 你有 3 个选择：")
+        print("✅ 后续可选：")
         print()
-        print("   ① 用 WorkBuddy 自然语言调用本 skill（推荐）")
+        print("   ① 用支持 Apify MCP 的 agent 调用本 skill")
         print("      '用 douyin-creator-insight 分析这个抖音主页：<URL>'")
-        print("      → WorkBuddy 自动注入 Apify MCP，无需手动配")
+        print("      → agent 按 SKILL.md 编排 MCP 工具")
         print()
         print("   ② 配 Apify MCP 后从 WorkBuddy 调用")
         print("      → 编辑 ~/.workbuddy/mcp.json（参考仓库 mcp.json.example）")
         print("      → 拿 token：https://console.apify.com/account/integrations")
         print()
-        print("   ③ 写 Python 脚本手动注入 apify_caller")
+        print("   ③ 用 --adapter module:function 显式注入 CLI adapter")
         print("      → 详见 README.md '作为 Python 模块' 章节")
         print()
         print("━" * 50)
@@ -118,8 +119,8 @@ def dry_run_pipeline(
             "resolution": resolution.to_dict(),
             "next_steps": [
                 "1. 配 Apify MCP（参考 mcp.json.example）",
-                "2. 用 WorkBuddy 调用本 skill",
-                "3. 或写 Python 脚本注入 apify_caller",
+                "2. 用支持 Apify MCP 的 agent 调用本 skill",
+                "3. 或通过 --adapter 显式注入 CLI adapter",
             ],
         }
 
@@ -207,7 +208,19 @@ def dry_run_pipeline(
     }
 
 
-def main():
+def load_callable(spec: str) -> Callable:
+    """Load a `module:function` adapter without guessing global credentials."""
+    if ":" not in spec:
+        raise ValueError("adapter must use module:function format")
+    module_name, function_name = spec.rsplit(":", 1)
+    module = importlib.import_module(module_name)
+    adapter = getattr(module, function_name, None)
+    if not callable(adapter):
+        raise ValueError(f"adapter is not callable: {spec}")
+    return adapter
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Douyin Creator Insight Pipeline")
     parser.add_argument("--creator", required=True, help="抖音号 / 昵称 / 主页 URL")
     parser.add_argument("--max-videos", type=int, default=200, help="抓取视频条数")
@@ -215,23 +228,55 @@ def main():
     parser.add_argument("--max-duration", type=float, default=5.0, help="转写时长上限（分钟）")
     parser.add_argument("--output-dir", default="./output", help="输出目录")
     parser.add_argument("--format", nargs="+", default=["html", "json", "md"], help="输出格式")
-    args = parser.parse_args()
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只解析输入并显示后续步骤，不调用外部服务",
+    )
+    mode.add_argument(
+        "--adapter",
+        help="真实调用 adapter，格式为 module:function",
+    )
+    parser.add_argument(
+        "--browser-adapter",
+        help="昵称/抖音号搜索 adapter，格式为 module:function",
+    )
+    return parser
 
-    result = dry_run_pipeline(
+
+def main(argv=None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    try:
+        apify_caller = load_callable(args.adapter) if args.adapter else None
+        apify_browser = load_callable(args.browser_adapter) if args.browser_adapter else None
+    except (ImportError, AttributeError, ValueError) as exc:
+        parser.error(str(exc))
+
+    result = run_pipeline(
         creator_query=args.creator,
         max_videos=args.max_videos,
         transcript_count=args.transcript_count,
         transcript_max_duration_minutes=args.max_duration,
         output_dir=args.output_dir,
         output_formats=args.format,
+        apify_caller=apify_caller,
+        apify_browser=apify_browser,
     )
 
     if result is None:
-        sys.exit(1)
+        return 1
     print()
     print("=" * 50)
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    return 0
+
+
+# Backward-compatible import for callers that used the v1.0.0 function name.
+dry_run_pipeline = run_pipeline
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

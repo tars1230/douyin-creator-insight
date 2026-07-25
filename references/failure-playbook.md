@@ -54,7 +54,7 @@
 **症状**：`fetch_transcripts` 返回空或全部 failed
 
 **主策略**：
-- 检查视频时长（> 5 分钟免费版失败）
+- 检查视频时长和 Actor 当前限制
 - 切换备用 actor（apple_yang）
 
 **兜底**：
@@ -85,7 +85,7 @@
 
 **兜底**：
 - 完全离线模式：用户上传历史 raw JSON，skill 仅做分析和报告
-- WebFetch 直接抓 douyin.com 网页（绕过 API）
+- 使用用户提供的、已获授权的公开数据快照
 
 ## 7. 字段 schema 突然变化
 
@@ -103,7 +103,7 @@
 
 - **createTime 是毫秒还是秒**？不同 actor 不同
   - `parser.py::_format_date` 自动判断：> 10^12 是毫秒
-- **时长过滤**：免费版 actor 限 5 分钟
+- **时长过滤**：默认筛选上限为 5 分钟，可按 Actor 当前限制调整
   - `selector.py::apply_duration_penalty` 自动惩罚
 
 ## 9. 网络/TLS 错误

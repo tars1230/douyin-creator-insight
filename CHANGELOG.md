@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-07-25
+
+### Fixed
+- CLI now requires explicit `--dry-run` or `--adapter module:function`; a real-looking command can no longer silently return a dry-run result.
+- Added fixture-based end-to-end tests and subprocess tests for CLI exit behavior.
+- Removed unbenchmarked timing, cost, quota, and free-tier promises from current documentation.
+
+### Added
+- GitHub Actions on Python 3.10 and 3.12.
+- Repository checks for Skill metadata, private absolute paths, and common live-secret patterns.
+- Security policy and explicit credential-handling guidance.
+
 ## [1.0.0] - 2026-07-15
 
 ### Added
@@ -21,13 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 - README.md 加 4 大徽章（License / Python 版本 / 零依赖 / Apify 必需）
 - 加 demo 报告区（docs/sample-report.{html,md,json}）
-- 加额度预估表（4 种规模 × 4 个维度）
+- 加初版额度预估表（因缺少可复现实验依据，已在 v1.0.1 删除）
 - 加 6 条 FAQ（覆盖 dry-run / 额度 / 输入选择 / empty_transcript / 私密账号 / 与 douyin-workflow 区别）
-- 加 30 秒环境自检脚本
+- 加环境自检脚本
 - SKILL.md 加"⚠️ 前置条件"章节（4 步检查清单）
 - SKILL.md 加"⚡ 失败兜底速查"表格（5 行版本）
 
 ### Notes
 - 零 Python 三方依赖（用 dataclasses + 标准库）
 - 需要 Apify token + Apify MCP（详见 mcp.json.example）
-- 免费层 $5/月够跑 1-3 次完整调研（200 条视频 + 5 条转写）
+- 初版包含固定额度估算；v1.0.1 起改为运行前核对 Actor 页面并以本次实测为准
