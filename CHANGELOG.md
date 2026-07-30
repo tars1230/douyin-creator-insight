@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-30
+
+### Added
+- Browser-first public creator collection: accepts profile URLs, `sec_uid`, and complete Douyin share messages containing `v.douyin.com` links.
+- `--browser`, `--browser-profile`, and `--headed` CLI options. The collector reuses the existing favorites persistent profile, fetches public post pages in browser context, locally caps and deduplicates results, and verifies every item's author `sec_uid`.
+
+### Changed
+- Apify is an explicit adapter fallback, not a default dependency for public creator collection.
+- Nickname and Douyin-ID searches never auto-select an account; the workflow asks for a stable profile/share link when search is ambiguous or blocked by CAPTCHA.
+- Reports state their actual collection and transcript sources. Browser-mode reports explicitly mark transcript candidates as skipped when no transcription provider is configured.
+
 ## [1.0.2] - 2026-07-25
 
 ### Changed

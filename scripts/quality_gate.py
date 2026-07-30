@@ -92,7 +92,7 @@ def _get_recommendation(stage: str, passed: bool, msg: str) -> str:
 
     recommendations = {
         "creator": "请用 AskUserQuestion 让用户确认候选博主，或重新输入抖音号",
-        "videos": "检查 Apify 账号额度，或降低 max_videos 重试",
+        "videos": "检查公开主页链接、登录状态和平台响应，或降低 max_videos 重试",
         "transcripts": "尝试切换备用 actor，或跳过失败的视频用其他精华",
     }
     return recommendations.get(stage, "请检查输入数据或重试")

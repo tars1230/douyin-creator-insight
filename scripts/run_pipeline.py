@@ -14,8 +14,9 @@ from typing import Optional, Callable
 # 允许脚本独立运行
 sys.path.insert(0, str(Path(__file__).parent))
 
-from schemas import PipelineReport
+from schemas import CreatorResolution, PipelineReport, Transcript, TranscriptStatus
 from resolver import (
+    extract_douyin_url,
     parse_input_type,
     resolve_creator_via_apify,
     format_resolution_for_question,
@@ -26,6 +27,7 @@ from transcript import fetch_transcripts
 from categorizer import categorize_videos, build_categorization_prompt
 from report_builder import save_reports, build_html_report
 from quality_gate import run_quality_gate
+from browser_collector import collect_public_creator_sync
 
 
 def run_pipeline(
@@ -37,6 +39,9 @@ def run_pipeline(
     output_formats: list = None,
     apify_caller: Optional[Callable] = None,
     apify_browser: Optional[Callable] = None,
+    browser: bool = False,
+    browser_profile: Optional[Path] = None,
+    headed: bool = False,
 ):
     """
     端到端编排。
@@ -44,6 +49,7 @@ def run_pipeline(
     Args:
         apify_caller: 兼容 Apify MCP 语义的调用函数；传 None 时只做 dry-run
         apify_browser: 真实的 Apify rag-web-browser 函数
+        browser: 在用户已授权的本地浏览器 profile 内采集公开主页作品。
     """
     if output_formats is None:
         output_formats = ["html", "json", "md"]
@@ -61,11 +67,40 @@ def run_pipeline(
     input_type = parse_input_type(creator_query)
     print(f"   输入类型: {input_type}")
 
-    resolution = resolve_creator_via_apify(
-        creator_query, input_type,
-        apify_caller=apify_caller,
-        apify_browser=apify_browser,
-    )
+    browser_items = None
+    if browser:
+        if input_type == "sec_uid":
+            browser_input = f"https://www.douyin.com/user/{creator_query.strip()}"
+        elif input_type == "url":
+            browser_input = extract_douyin_url(creator_query) or creator_query.strip()
+        else:
+            print("   ⚠️ 浏览器模式不按昵称或抖音号自动选人，避免同名误抓。")
+            print("   → 请粘贴博主页链接，或分享消息中的“查看 TA 的更多作品”短链接。")
+            return None
+
+        metadata, browser_items = collect_public_creator_sync(
+            browser_input,
+            max_videos=max_videos,
+            profile_dir=browser_profile,
+            headed=headed,
+        )
+        resolution = CreatorResolution(
+            creator_query=creator_query,
+            matched=True,
+            confidence=0.95,
+            sec_uid=metadata["sec_uid"],
+            nickname=metadata.get("nickname") or None,
+            profile_url=metadata["profile_url"],
+            followers_count=metadata.get("followers_count"),
+            heart_count=metadata.get("heart_count"),
+            signature=metadata.get("signature") or None,
+        )
+    else:
+        resolution = resolve_creator_via_apify(
+            creator_query, input_type,
+            apify_caller=apify_caller,
+            apify_browser=apify_browser,
+        )
 
     if not resolution.matched:
         print(f"   ⚠️ 未匹配（置信度 {resolution.confidence:.0%}）")
@@ -91,7 +126,7 @@ def run_pipeline(
     print("Step 2: 抓取视频列表")
     print("━" * 50)
 
-    if apify_caller is None:
+    if apify_caller is None and not browser:
         print()
         print("━" * 50)
         print("⚠️  dry-run 模式")
@@ -124,22 +159,26 @@ def run_pipeline(
             ],
         }
 
-    # 真实调用 Apify
-    raw_result = apify_caller(
-        actor="zen-studio/douyin-profile-scraper",
-        input={
-            "maxPostsPerProfile": max_videos,
-            "profileUrls": [resolution.profile_url] if resolution.profile_url else [f"https://www.douyin.com/user/{resolution.sec_uid}"],
-        },
-        wait_secs=45,
-    )
+    if browser:
+        raw_result = browser_items
+        actor_name = "authorized_browser_public_profile"
+    else:
+        raw_result = apify_caller(
+            actor="zen-studio/douyin-profile-scraper",
+            input={
+                "maxPostsPerProfile": max_videos,
+                "profileUrls": [resolution.profile_url] if resolution.profile_url else [f"https://www.douyin.com/user/{resolution.sec_uid}"],
+            },
+            wait_secs=45,
+        )
+        actor_name = "zen-studio/douyin-profile-scraper"
 
     # Step 3: 解析视频数据
     print("Step 3: 标准化视频数据")
     if isinstance(raw_result, dict) and "datasetItems" in raw_result:
-        videos = parse_actor_dataset(raw_result["datasetItems"])
+        videos = parse_actor_dataset(raw_result["datasetItems"], actor_name=actor_name)
     elif isinstance(raw_result, list):
-        videos = parse_actor_dataset(raw_result)
+        videos = parse_actor_dataset(raw_result, actor_name=actor_name)
     else:
         print(f"   ❌ 无法解析返回数据")
         return None
@@ -165,9 +204,21 @@ def run_pipeline(
     print("━" * 50)
     print("Step 5: 抓取语音转写")
     print("━" * 50)
-    transcripts = fetch_transcripts(essentials, apify_caller=apify_caller)
-    quality = run_quality_gate("transcripts", transcripts)
-    print(f"   {quality['message']}")
+    if browser:
+        transcripts = [
+            Transcript(
+                aweme_id=video.aweme_id,
+                status=TranscriptStatus.SKIPPED,
+                actor_used="not_configured",
+                err_msg="浏览器模式只采集公开作品清单；未配置语音转写 provider",
+            )
+            for video in essentials
+        ]
+        print("   未配置语音转写 provider；已在报告中明确标记为未转写")
+    else:
+        transcripts = fetch_transcripts(essentials, apify_caller=apify_caller)
+        quality = run_quality_gate("transcripts", transcripts)
+        print(f"   {quality['message']}")
     print()
 
     # Step 6: 内容分类
@@ -192,6 +243,8 @@ def run_pipeline(
         transcripts=transcripts,
         categories=categories,
         engagement_top=top_videos,
+        data_source=("用户已授权浏览器中的公开博主页接口" if browser else "Apify zen-studio/douyin-profile-scraper"),
+        transcript_source=("未配置（精华候选已标记 skipped）" if browser else "Apify transcript actor"),
     )
 
     paths = save_reports(final_report, top_videos, output_dir, formats=output_formats)
@@ -203,7 +256,8 @@ def run_pipeline(
         "status": "success",
         "creator": resolution.nickname or resolution.douyin_id,
         "video_count": len(videos),
-        "transcript_count": len(transcripts),
+        "transcript_count": sum(1 for transcript in transcripts if transcript.status == TranscriptStatus.SUCCESS),
+        "transcript_candidate_count": len(transcripts),
         "output_paths": paths,
     }
 
@@ -238,6 +292,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--adapter",
         help="真实调用 adapter，格式为 module:function",
     )
+    mode.add_argument(
+        "--browser",
+        action="store_true",
+        help="使用已授权本地浏览器 profile 采集公开博主页；仅接受主页/分享链接或 sec_uid",
+    )
+    parser.add_argument("--browser-profile", type=Path, help="可选：浏览器 profile 目录")
+    parser.add_argument("--headed", action="store_true", help="浏览器模式显示窗口，便于诊断登录或验证码")
     parser.add_argument(
         "--browser-adapter",
         help="昵称/抖音号搜索 adapter，格式为 module:function",
@@ -264,6 +325,9 @@ def main(argv=None) -> int:
         output_formats=args.format,
         apify_caller=apify_caller,
         apify_browser=apify_browser,
+        browser=args.browser,
+        browser_profile=args.browser_profile,
+        headed=args.headed,
     )
 
     if result is None:
