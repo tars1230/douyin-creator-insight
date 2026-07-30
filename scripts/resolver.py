@@ -20,6 +20,16 @@ DOUYIN_URL_PATTERNS = [
     re.compile(r"https?://v\.douyin\.com/([A-Za-z0-9_-]+)"),  # 短链
     re.compile(r"https?://(?:www\.)?douyin\.com/discover\?.*modal_id=(\d+)"),
 ]
+URL_IN_TEXT_PATTERN = re.compile(r"https?://[^\s]+")
+
+
+def extract_douyin_url(user_input: str) -> Optional[str]:
+    """Extract a Douyin URL from a full share message without trusting its other text."""
+    for match in URL_IN_TEXT_PATTERN.finditer(user_input):
+        candidate = match.group(0).rstrip("，。；;）)]}！？!\"'")
+        if any(pattern.match(candidate) for pattern in DOUYIN_URL_PATTERNS):
+            return candidate
+    return None
 
 
 def parse_input_type(user_input: str) -> str:
@@ -28,10 +38,11 @@ def parse_input_type(user_input: str) -> str:
     返回: douyin_id | sec_uid | nickname | url | unknown
     """
     user_input = user_input.strip()
+    url_input = extract_douyin_url(user_input)
 
     # 1. 完整 URL
     for pattern in DOUYIN_URL_PATTERNS:
-        m = pattern.match(user_input)
+        m = pattern.match(url_input or user_input)
         if m:
             captured = m.group(1)
             if captured.isdigit() and len(captured) > 12:

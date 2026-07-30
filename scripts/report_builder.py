@@ -107,8 +107,8 @@ footer {{ background: #0f172a; color: #94a3b8; padding: 28px 40px; text-align: c
 <section>
     <h2>📖 数据来源 + 方法</h2>
     <ul>
-        <li><strong>数据采集：</strong>Apify <code>zen-studio/douyin-profile-scraper</code></li>
-        <li><strong>语音转写：</strong>Apify <code>zen-studio/douyin-transcripts-scraper</code> / <code>apple_yang/douyin-transcripts-scraper</code></li>
+        <li><strong>数据采集：</strong>{data_source}</li>
+        <li><strong>语音转写：</strong>{transcript_source}</li>
         <li><strong>筛选标准：</strong>互动分 = log(点赞)*1 + log(评论)*2.5 + log(分享)*3 + log(收藏)*2</li>
         <li><strong>分类方法：</strong>规则标签 + LLM 主题分类</li>
         <li><strong>报告生成：</strong>{generated_at}</li>
@@ -223,6 +223,8 @@ def build_html_report(report: PipelineReport, top_videos: List[Video]) -> str:
         transcript_count=len(valid_transcripts),
         signature_html=signature_html,
         sec_uid=_safe(creator.sec_uid or "—"),
+        data_source=_safe(report.data_source),
+        transcript_source=_safe(report.transcript_source),
         categories_section=_render_categories(report.categories, report.videos),
         transcripts_section=_render_transcripts(valid_transcripts, report.videos),
         top_videos_section=_render_top_videos(top_videos),
@@ -240,6 +242,8 @@ def build_md_report(report: PipelineReport, top_videos: List[Video]) -> str:
         "",
         f"**数据时点：** {report.generated_at.strftime('%Y-%m-%d %H:%M:%S')}",
         f"**研究目的：** {report.research_goal}",
+        f"**数据采集：** {report.data_source}",
+        f"**语音转写：** {report.transcript_source}",
         "",
         "## 📊 账号概况",
         "",
@@ -297,8 +301,8 @@ def build_md_report(report: PipelineReport, top_videos: List[Video]) -> str:
     lines.extend([
         "## 📖 数据来源",
         "",
-        "- Apify `zen-studio/douyin-profile-scraper`",
-        "- Apify `zen-studio/douyin-transcripts-scraper`",
+        f"- 数据采集：{report.data_source}",
+        f"- 语音转写：{report.transcript_source}",
         "- 互动分公式：`log(点赞)*1 + log(评论)*2.5 + log(分享)*3 + log(收藏)*2`",
         "",
         f"生成时间：{report.generated_at.strftime('%Y-%m-%d %H:%M:%S')}",

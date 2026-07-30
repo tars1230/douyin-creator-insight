@@ -157,6 +157,8 @@ class PipelineReport:
     transcripts: List[Transcript]
     categories: Dict[str, List[str]] = field(default_factory=dict)
     engagement_top: List[Video] = field(default_factory=list)
+    data_source: str = "Apify profile actor"
+    transcript_source: str = "Apify transcript actor"
     research_goal: str = "creator_insight"
     generated_at: datetime = field(default_factory=datetime.now)
 
@@ -167,6 +169,8 @@ class PipelineReport:
             "transcripts": [t.to_dict() for t in self.transcripts],
             "categories": self.categories,
             "engagement_top": [v.to_dict() for v in self.engagement_top],
+            "data_source": self.data_source,
+            "transcript_source": self.transcript_source,
             "research_goal": self.research_goal,
             "generated_at": self.generated_at.isoformat(),
         }
