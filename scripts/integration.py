@@ -11,6 +11,7 @@ from typing import Any, Iterator
 def _favorites_roots() -> list[Path]:
     home = Path.home()
     return [
+        home / ".shared" / "skills" / "douyin-favorites-to-knowledge",
         home / ".openclaw" / "workspace" / "skills" / "douyin-favorites-to-knowledge",
         home / ".shared" / "skills" / "douyin-knowledge-base-pipeline",
     ]
@@ -19,7 +20,11 @@ def _favorites_roots() -> list[Path]:
 def probe_installation(profile: Path | None = None, output_dir: Path | None = None) -> dict[str, Any]:
     """Return integration facts without writing config, login, or credentials."""
     from browser_collector import default_profile_dir
+    from runtime_env import ensure_runtime_env
+    from setup_config import detect_existing_setup
 
+    ensure_runtime_env()
+    detected = detect_existing_setup()
     selected_profile = (profile or default_profile_dir()).expanduser()
     favorites = [root for root in _favorites_roots() if root.exists()]
     output = (output_dir or Path("./output")).expanduser()
@@ -35,8 +40,12 @@ def probe_installation(profile: Path | None = None, output_dir: Path | None = No
     return {
         "creator_insight": "installed",
         "favorites_skill": "installed" if favorites else "not_installed (optional)",
+        "favorites_transcript_mode": detected.get("favorites_transcript_mode"),
+        "cloud_asr_configured": detected["cloud_asr_configured"],
+        "setup_configured": detected["creator_configured"],
         "shared_profile": "available" if selected_profile.is_dir() else "not_initialized (login required)",
         "profile_reuse": bool(selected_profile.is_dir()),
+        "profile_source": detected["profile_source"],
         "shared_profile_busy": profile_busy,
         "isolated_output": True,
         "recommended_output_layout": "<output-root>/creator-insight/",

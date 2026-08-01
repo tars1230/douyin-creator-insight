@@ -16,25 +16,54 @@
 
 本项目只处理公开数据，不绕过登录、隐私或平台访问控制。
 
+## 安装与分发入口
+
+- Agent 一键安装：[ClawHub douyin-creator-insight](https://clawhub.ai/tars1230/skills/douyin-creator-insight)
+- 国内源码镜像：[Gitee tars123/douyin-creator-insight](https://gitee.com/tars123/douyin-creator-insight)
+- 源码与版本发布：[GitHub tars1230/douyin-creator-insight](https://github.com/tars1230/douyin-creator-insight)
+
 ## 运行方式
 
 ### 独立运行，可选复用收藏 skill
 
-本 skill 可以独立安装。第一次运行只需完成一次抖音登录，并配置 `DASHSCOPE_API_KEY`；默认 `cloud` 模式先把公开媒体 URL 直接交给百炼兼容 ASR。百炼拒绝大视频时，若配置了可选 `SILICONFLOW_API_KEY`，会临时下载并上传音频到云端 ASR，完成即清理；只有云端都失败才进入 `local`（临时下载 + Whisper）。`index` 只索引标题、描述、互动数据和链接。skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。
+本 skill 可以独立安装。第一次运行先执行 `python3 scripts/setup.py`，明确选择：
 
-同时安装 `douyin-favorites-to-knowledge` 时，两者可复用同一浏览器 profile 和 ASR key，但状态、输出和调度完全隔离：Creator Insight 默认写入 `./output/creator-insight/`，不读取收藏 metadata，也不加入 23:00 收藏任务。运行前执行 `python3 scripts/integration.py`；若共享 profile 已被占用，等待当前流程结束即可。`douyin-mcp` 是可选诊断工具，不是安装或运行依赖。
+- `cloud`：百炼云端 ASR，默认推荐。只把公开媒体 URL 交给百炼，不下载视频。
+- `local`：本地 Whisper。只有用户明确选择时才临时下载视频，结束后清理。
+- `index`：只索引标题、描述、互动数据和链接，不调用 ASR。
+
+如果选择 `cloud` 但没有检测到 `DASHSCOPE_API_KEY`，setup 和真实运行都会提示阿里云官方申请说明：[如何获取 API Key](https://help.aliyun.com/zh/model-studio/get-api-key)。创建 Key 后，把它配置到本机环境变量或宿主 Secret Manager；不要把 Key 发到聊天、写入配置或提交到仓库。Key 缺失时，本项目不会自动下载视频，也不会偷偷切到本地 Whisper。百炼拒绝大视频时，若配置了可选 `SILICONFLOW_API_KEY`，会临时下载并上传音频到云端 ASR，完成即清理；只有云端已配置但真实调用失败时才进入 `local` fallback。
+
+skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。
+
+同时安装 `douyin-favorites-to-knowledge` 时，setup 会探测并优先复用它的已登录浏览器 profile 和转录偏好，但状态、输出和调度完全隔离：Creator Insight 默认写入 `./output/creator-insight/`，不读取收藏 metadata，也不加入 23:00 收藏任务。运行前执行 `python3 scripts/integration.py`；若共享 profile 已被占用，等待当前流程结束即可。`douyin-mcp` 是可选诊断工具，不是安装或运行依赖。
 
 ### 1. 本地浏览器模式（默认推荐）
 
 首次独立使用时，本 skill 会使用中性的共享浏览器 profile；登录一次抖音即可。若已安装收藏 skill，则自动复用它现有的已登录 profile。之后可直接粘贴主页、`sec_uid`，或包含 `https://v.douyin.com/.../` 的完整分享消息：
 
 ```bash
+python3 scripts/setup.py
+python3 scripts/integration.py
 python3 scripts/run_pipeline.py \
   --creator '长按复制此条消息，打开抖音搜索 https://v.douyin.com/xxxx/ ...' \
   --browser --max-videos 50 --output-dir ./output
 ```
 
 该模式只读取公开作品列表，逐页验证每条作品作者的 `sec_uid`，不复制 cookie、不输出 profile、不绕过验证码。默认先用百炼 URL ASR；大文件可切到云端音频上传并自动清理临时文件，全部云端失败才回退本地 Whisper。
+
+非交互环境可以显式配置：
+
+```bash
+# 云端：保存选择；若 Key 尚未配置，真实运行会安全停止并给出申请入口
+python3 scripts/setup.py --transcript-mode cloud
+
+# 本地：只有明确选择 local 后，真实运行才允许临时下载视频
+python3 scripts/setup.py --transcript-mode local
+
+# 索引：不转录、不下载视频
+python3 scripts/setup.py --transcript-mode index
+```
 
 首次使用需要可选依赖：
 
@@ -98,7 +127,7 @@ python3 scripts/run_pipeline.py \
 | `--browser-adapter` | 昵称/抖音号搜索 adapter | 可选 |
 | `--max-videos` | 请求的视频上限 | 1000 |
 | `--transcript-count` | 请求的转写候选数；指定时覆盖自动分档 | 按账号规模自动选择 |
-| `--transcript-mode` | `cloud` 默认百炼 URL ASR + 云端 fallback；`local` Whisper；`index` 只做信息索引 | `cloud` |
+| `--transcript-mode` | `cloud` 默认百炼 URL ASR + 云端 fallback；`local` Whisper；`index` 只做信息索引 | setup 选择，未配置时为 `cloud` |
 | `--no-local-fallback` | 云端 ASR 全部失败时不回退本地 Whisper | 关闭 |
 | `--max-duration` | 选择阶段的时长上限，分钟 | 5 |
 | `--output-dir` | Creator Insight 专用报告目录 | `./output/creator-insight` |
@@ -122,7 +151,7 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 
 ## 数据源与成本
 
-浏览器模式不需要 Apify key，边界是用户已授权浏览器可访问的公开主页。默认 actor 和 fallback 见 [references/apify-douyin-actors.md](references/apify-douyin-actors.md)。Actor 的可用性、输入 schema、价格和账户额度会变化；运行前应在对应 Apify Actor 页面核验，并先用小样本测试。仓库不承诺固定耗时、费用或免费额度。
+浏览器模式不需要 Apify key，边界是用户已授权浏览器可访问的公开主页。默认 cloud ASR 使用百炼 `qwen3-asr-flash`；价格、地域和免费额度会变化，实际扣费以用户百炼控制台账单为准。默认 actor 和 fallback 见 [references/apify-douyin-actors.md](references/apify-douyin-actors.md)。Actor 的可用性、输入 schema、价格和账户额度会变化；运行前应在对应 Apify Actor 页面核验，并先用小样本测试。仓库不承诺固定耗时、费用或免费额度。
 
 ## 输出与示例
 
@@ -138,7 +167,7 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 
 - 上游字段或 Actor 行为变化可能导致质量门阻断。
 - 昵称搜索可能触发验证码，也可能产生同名候选；浏览器模式不会搜索或自动选择，需改贴主页或分享链接。
-- 无旁白、纯音乐或上游转写失败的视频可能没有 transcript。
+- 无旁白、纯音乐、未配置云端 Key 或上游转写失败的视频可能没有 transcript。未配置 `DASHSCOPE_API_KEY` 时真实运行会安全停止并提示官方申请入口，不会自动下载视频。
 - 未指定 `--transcript-count` 时：30 条及以下全量转写；31-100 条按点赞前 50；101-300 条选 60 条；301-800 条选 80 条；更大账号最多选 100 条。大账号样本按点赞、收藏与近期作品分层去重，避免只偏向历史爆款。
 - 浏览器模式会记录主页声明作品数、实际采集数和分页状态。达到请求上限而尚有下一页时，结果为 `partial`，不能作为全量结论。
 - 收藏 skill 是可选共享底座，不是前置依赖；同时安装时先运行 `scripts/integration.py` 探测 profile 占用和输出布局。浏览器模式不会读取或导出 cookie。

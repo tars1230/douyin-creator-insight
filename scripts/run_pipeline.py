@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Callable
@@ -29,6 +30,8 @@ from report_builder import save_reports, build_html_report
 from quality_gate import run_quality_gate
 from browser_collector import collect_public_creator_sync
 from integration import probe_installation
+from runtime_env import ensure_runtime_env
+from setup_config import BAILIAN_API_KEY_GUIDE_URL, load_setup_config
 
 
 def run_pipeline(
@@ -366,7 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--transcript-mode",
         choices=("cloud", "local", "index"),
-        default="cloud",
+        default=None,
         help="转写模式：cloud 默认百炼 URL ASR；local 使用临时文件 Whisper；index 只做信息索引",
     )
     parser.add_argument(
@@ -374,7 +377,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="云端 ASR 失败时不回退本地 Whisper",
     )
-    parser.add_argument("--output-dir", default="./output/creator-insight", help="Creator Insight 专用输出目录")
+    parser.add_argument("--output-dir", help="Creator Insight 专用输出目录")
     parser.add_argument("--format", nargs="+", default=["html", "json", "md"], help="输出格式")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
@@ -403,6 +406,26 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    ensure_runtime_env()
+    try:
+        setup = load_setup_config()
+    except ValueError as exc:
+        parser.error(str(exc))
+    transcript_mode = args.transcript_mode or setup.get("transcript_mode", "cloud")
+    if transcript_mode not in {"cloud", "local", "index"}:
+        parser.error(f"invalid configured transcript mode: {transcript_mode}")
+    allow_local_fallback = not args.no_local_fallback
+    if "allow_local_fallback" in setup and args.transcript_mode is None:
+        allow_local_fallback = bool(setup["allow_local_fallback"])
+
+    if not args.dry_run and transcript_mode == "cloud" and not os.environ.get("DASHSCOPE_API_KEY"):
+        print("❌ 云端 ASR 尚未配置 DASHSCOPE_API_KEY；本次未下载视频，也未偷偷切换到本地 Whisper。")
+        print(f"   官方申请说明：{BAILIAN_API_KEY_GUIDE_URL}")
+        print("   配置后重启当前 Agent/宿主进程，再运行；或明确选择 --transcript-mode local / index。")
+        print("   可先执行：python3 scripts/setup.py --transcript-mode cloud")
+        return 2
+    output_dir = args.output_dir or setup.get("output_dir", "./output/creator-insight")
+    browser_profile = args.browser_profile or (Path(setup["browser_profile"]) if setup.get("browser_profile") else None)
 
     try:
         apify_caller = load_callable(args.adapter) if args.adapter else None
@@ -415,15 +438,15 @@ def main(argv=None) -> int:
         max_videos=args.max_videos,
         transcript_count=args.transcript_count,
         transcript_max_duration_minutes=args.max_duration,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
         output_formats=args.format,
         apify_caller=apify_caller,
         apify_browser=apify_browser,
         browser=args.browser,
-        browser_profile=args.browser_profile,
+        browser_profile=browser_profile,
         headed=args.headed,
-        transcript_mode=args.transcript_mode,
-        allow_local_fallback=not args.no_local_fallback,
+        transcript_mode=transcript_mode,
+        allow_local_fallback=allow_local_fallback,
     )
 
     if result is None:

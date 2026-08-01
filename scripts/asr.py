@@ -73,7 +73,7 @@ def transcribe_videos(
             providers.add(transcript.actor_used or "dashscope-cloud")
             continue
 
-        if allow_local_fallback:
+        if allow_local_fallback and not _is_missing_configuration(transcript):
             fallback = _safe_transcribe(local, video, "local-whisper")
             if fallback.status == TranscriptStatus.SUCCESS:
                 fallback.err_msg = _join_errors(transcript.err_msg, "cloud failed; local fallback used")
@@ -83,6 +83,13 @@ def transcribe_videos(
             fallback.err_msg = _join_errors(transcript.err_msg, fallback.err_msg)
             results.append(fallback)
             providers.add(fallback.actor_used or "local-whisper")
+        elif _is_missing_configuration(transcript):
+            transcript.err_msg = _join_errors(
+                transcript.err_msg,
+                "local fallback not attempted because cloud credentials are missing; choose local explicitly",
+            )
+            results.append(transcript)
+            providers.add(transcript.actor_used or "dashscope-cloud")
         else:
             results.append(transcript)
             providers.add(transcript.actor_used or "dashscope-cloud")
@@ -252,6 +259,19 @@ def _safe_transcribe(transcriber: Callable[[Video], Transcript], video: Video, p
     if not isinstance(result, Transcript):
         return _failed(video, provider, "provider returned an invalid result")
     return result
+
+
+def _is_missing_configuration(transcript: Transcript) -> bool:
+    """Do not turn a missing cloud key into an implicit media download."""
+    message = (transcript.err_msg or "").lower()
+    return any(
+        marker in message
+        for marker in (
+            "api_key is not configured",
+            "api key is not configured",
+            "credentials are missing",
+        )
+    )
 
 
 def _download_media(url: str, destination: Path) -> None:
