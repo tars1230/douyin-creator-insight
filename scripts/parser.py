@@ -53,6 +53,15 @@ def _normalize_video_item(item: Dict[str, Any], actor_name: str) -> Optional[Vid
     # 5. 提取封面和分享 URL
     cover_url = _extract_field(item, ["videoMeta.cover", "video.cover", "coverUrl", "cover"])
     share_url = _extract_field(item, ["shareUrl", "share_url", "url", "videoUrl"])
+    video_url = _extract_field(item, [
+        "videoUrl", "video_url", "videoMeta.url", "video.play_addr.url_list.0",
+        "video.play_addr.url", "play_addr.url_list.0", "download_url",
+    ])
+    audio_url = _extract_field(item, [
+        "audioUrl", "audio_url", "audio.url", "audioMeta.url",
+        "video.audio.url_list.0", "video.audio.url",
+    ])
+    media_source = _extract_field(item, ["mediaSource", "media_source"])
 
     # 6. 提取 hashtags
     hashtags = _extract_hashtags(item)
@@ -73,6 +82,9 @@ def _normalize_video_item(item: Dict[str, Any], actor_name: str) -> Optional[Vid
         duration_seconds=duration_seconds,
         cover_url=cover_url,
         share_url=share_url,
+        video_url=video_url,
+        audio_url=audio_url,
+        media_source=media_source,
         hashtags=hashtags,
         series_name=series_name,
         stats=stats,
@@ -90,6 +102,8 @@ def _extract_field(item: Dict[str, Any], paths: List[str]) -> Any:
             for k in keys:
                 if isinstance(current, dict) and k in current:
                     current = current[k]
+                elif isinstance(current, list) and k.isdigit() and int(k) < len(current):
+                    current = current[int(k)]
                 else:
                     current = None
                     break

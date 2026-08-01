@@ -10,7 +10,7 @@
 
 - 解析主页 URL、`sec_uid` 和完整分享文案中的短链接；昵称或抖音号只用于人工候选确认，不自动选择同名账号。
 - 标准化不同数据源的视频字段。
-- 按互动信号选择候选精华视频，并获取可用的语音转写。
+- 按账号规模自动选择转写候选：小账号全量转写，大账号以点赞、收藏和近期作品分层抽样。
 - 对解析、视频数量和转写质量执行阻断式质量门。
 - 生成 HTML、Markdown、JSON 三种报告。
 
@@ -18,9 +18,15 @@
 
 ## 运行方式
 
+### 独立运行，可选复用收藏 skill
+
+本 skill 可以独立安装。第一次运行只需完成一次抖音登录，并配置 `DASHSCOPE_API_KEY`；默认 `cloud` 模式先把公开媒体 URL 直接交给百炼兼容 ASR。百炼拒绝大视频时，若配置了可选 `SILICONFLOW_API_KEY`，会临时下载并上传音频到云端 ASR，完成即清理；只有云端都失败才进入 `local`（临时下载 + Whisper）。`index` 只索引标题、描述、互动数据和链接。
+
+同时安装 `douyin-favorites-to-knowledge` 时，两者可复用同一浏览器 profile 和 ASR key，但状态、输出和调度完全隔离：Creator Insight 默认写入 `./output/creator-insight/`，不读取收藏 metadata，也不加入 23:00 收藏任务。运行前执行 `python3 scripts/integration.py`；若共享 profile 已被占用，等待当前流程结束即可。`douyin-mcp` 是可选诊断工具，不是安装或运行依赖。
+
 ### 1. 本地浏览器模式（默认推荐）
 
-先在同一台机器完成一次 `douyin-favorites-to-knowledge login`，然后可直接粘贴主页、`sec_uid`，或包含 `https://v.douyin.com/.../` 的完整分享消息：
+首次独立使用时，本 skill 会使用中性的共享浏览器 profile；登录一次抖音即可。若已安装收藏 skill，则自动复用它现有的已登录 profile。之后可直接粘贴主页、`sec_uid`，或包含 `https://v.douyin.com/.../` 的完整分享消息：
 
 ```bash
 python3 scripts/run_pipeline.py \
@@ -28,7 +34,7 @@ python3 scripts/run_pipeline.py \
   --browser --max-videos 50 --output-dir ./output
 ```
 
-该模式只读取公开作品列表，逐页验证每条作品作者的 `sec_uid`，不复制 cookie、不输出 profile、不绕过验证码。它不自带转写 provider，因此报告会明确标记精华候选为 `skipped`，不会将视频文案伪装为转写。
+该模式只读取公开作品列表，逐页验证每条作品作者的 `sec_uid`，不复制 cookie、不输出 profile、不绕过验证码。默认先用百炼 URL ASR；大文件可切到云端音频上传并自动清理临时文件，全部云端失败才回退本地 Whisper。
 
 首次使用需要可选依赖：
 
@@ -90,10 +96,12 @@ python3 scripts/run_pipeline.py \
 | `--headed` | 显示浏览器窗口，用于诊断登录/验证码 | 默认隐藏 |
 | `--adapter` | Apify 或其他外部真实采集 adapter，`module:function` | 与 `--dry-run`、`--browser` 三选一 |
 | `--browser-adapter` | 昵称/抖音号搜索 adapter | 可选 |
-| `--max-videos` | 请求的视频上限 | 200 |
-| `--transcript-count` | 请求的转写候选数 | 5 |
+| `--max-videos` | 请求的视频上限 | 1000 |
+| `--transcript-count` | 请求的转写候选数；指定时覆盖自动分档 | 按账号规模自动选择 |
+| `--transcript-mode` | `cloud` 默认百炼 URL ASR + 云端 fallback；`local` Whisper；`index` 只做信息索引 | `cloud` |
+| `--no-local-fallback` | 云端 ASR 全部失败时不回退本地 Whisper | 关闭 |
 | `--max-duration` | 选择阶段的时长上限，分钟 | 5 |
-| `--output-dir` | 报告目录 | `./output` |
+| `--output-dir` | Creator Insight 专用报告目录 | `./output/creator-insight` |
 | `--format` | `html json md` 的任意组合 | 全部 |
 
 ## 本地验证
@@ -131,7 +139,9 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 - 上游字段或 Actor 行为变化可能导致质量门阻断。
 - 昵称搜索可能触发验证码，也可能产生同名候选；浏览器模式不会搜索或自动选择，需改贴主页或分享链接。
 - 无旁白、纯音乐或上游转写失败的视频可能没有 transcript。
-- CLI adapter 是显式 fallback；浏览器模式只复用 `douyin-favorites-to-knowledge` 的 persistent profile，不读取或导出其中 cookie。
+- 未指定 `--transcript-count` 时：30 条及以下全量转写；31-100 条按点赞前 50；101-300 条选 60 条；301-800 条选 80 条；更大账号最多选 100 条。大账号样本按点赞、收藏与近期作品分层去重，避免只偏向历史爆款。
+- 浏览器模式会记录主页声明作品数、实际采集数和分页状态。达到请求上限而尚有下一页时，结果为 `partial`，不能作为全量结论。
+- 收藏 skill 是可选共享底座，不是前置依赖；同时安装时先运行 `scripts/integration.py` 探测 profile 占用和输出布局。浏览器模式不会读取或导出 cookie。
 - 私密账号、绕过访问控制和未授权批量采集不在支持范围内。
 
 ## 安全与贡献

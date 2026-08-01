@@ -10,7 +10,7 @@ import html
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
-from schemas import PipelineReport, Video
+from schemas import PipelineReport, TranscriptStatus, Video
 
 
 # 内置 HTML 模板
@@ -92,8 +92,11 @@ footer {{ background: #0f172a; color: #94a3b8; padding: 28px 40px; text-align: c
 
 <section>
     <h2>📑 摘要</h2>
-    <p>本报告基于 <strong>{video_count} 条最新视频</strong> + <strong>{transcript_count} 条精华语音转写</strong>生成。</p>
+    <p>本报告基于 <strong>{video_count} 条视频</strong> + <strong>{transcript_count} 条成功语音转写</strong>生成。</p>
+    <p><strong>转写候选：</strong>{transcript_selection}</p>
+    <p><strong>转写质量：</strong>{transcript_quality}</p>
     <p><strong>采集账号：</strong>{nickname}</p>
+    <p><strong>作品采集：</strong>{collection_summary}</p>
     <p><strong>sec_uid：</strong><code>{sec_uid}</code></p>
     <p><strong>报告时点：</strong>{generated_at}</p>
 </section>
@@ -132,6 +135,32 @@ def _safe(s: str) -> str:
     return html.escape(str(s))
 
 
+def _selection_summary(selection: Dict[str, Any]) -> str:
+    if not selection:
+        return "未记录"
+    if selection.get("mode") == "all":
+        return "全量转写候选"
+    if selection.get("mode") == "explicit":
+        return f"用户指定 {selection.get('selected_count', 0)} 条"
+    return (
+        "自动分层抽样："
+        f"{selection.get('total_videos', 0)} 条作品中选择 "
+        f"{selection.get('selected_count', 0)} 条"
+    )
+
+
+def _collection_summary(collection: Dict[str, Any]) -> str:
+    if not collection:
+        return "未记录"
+    state = collection.get("state", "unknown")
+    declared = collection.get("declared_count")
+    collected = collection.get("collected_count")
+    count = f"{collected}/{declared}" if declared is not None else str(collected or "—")
+    reconciliation = collection.get("reconciliation", "unavailable")
+    reason = collection.get("stop_reason") or "—"
+    return f"{state} · {count} · 对账 {reconciliation} · 停止原因 {reason}"
+
+
 def _render_categories(categories: Dict[str, List[str]], videos: List[Video]) -> str:
     """渲染分类章节"""
     if not categories:
@@ -154,7 +183,7 @@ def _render_categories(categories: Dict[str, List[str]], videos: List[Video]) ->
 
 def _render_transcripts(transcripts, videos: List[Video]) -> str:
     """渲染精华转写章节"""
-    valid = [t for t in transcripts if t.text]
+    valid = [t for t in transcripts if t.status == TranscriptStatus.SUCCESS and t.text]
     if not valid:
         return ""
 
@@ -207,7 +236,7 @@ def build_html_report(report: PipelineReport, top_videos: List[Video]) -> str:
     creator = report.creator
     nickname = creator.nickname or creator.douyin_id or creator.creator_query
 
-    valid_transcripts = [t for t in report.transcripts if t.text]
+    valid_transcripts = [t for t in report.transcripts if t.status == TranscriptStatus.SUCCESS and t.text]
 
     signature_html = ""
     if creator.signature:
@@ -225,6 +254,9 @@ def build_html_report(report: PipelineReport, top_videos: List[Video]) -> str:
         sec_uid=_safe(creator.sec_uid or "—"),
         data_source=_safe(report.data_source),
         transcript_source=_safe(report.transcript_source),
+        transcript_selection=_safe(_selection_summary(report.transcript_selection)),
+        transcript_quality=_safe(report.transcript_quality.get("message") or "未记录"),
+        collection_summary=_safe(_collection_summary(report.collection)),
         categories_section=_render_categories(report.categories, report.videos),
         transcripts_section=_render_transcripts(valid_transcripts, report.videos),
         top_videos_section=_render_top_videos(top_videos),
@@ -235,7 +267,7 @@ def build_md_report(report: PipelineReport, top_videos: List[Video]) -> str:
     """生成 Markdown 报告"""
     creator = report.creator
     nickname = creator.nickname or creator.douyin_id or creator.creator_query
-    valid_transcripts = [t for t in report.transcripts if t.text]
+    valid_transcripts = [t for t in report.transcripts if t.status == TranscriptStatus.SUCCESS and t.text]
 
     lines = [
         f"# {nickname} · 抖音内容洞察报告",
@@ -244,6 +276,9 @@ def build_md_report(report: PipelineReport, top_videos: List[Video]) -> str:
         f"**研究目的：** {report.research_goal}",
         f"**数据采集：** {report.data_source}",
         f"**语音转写：** {report.transcript_source}",
+        f"**转写质量：** {report.transcript_quality.get('message') or '未记录'}",
+        f"**转写候选：** {_selection_summary(report.transcript_selection)}",
+        f"**作品采集：** {_collection_summary(report.collection)}",
         "",
         "## 📊 账号概况",
         "",
