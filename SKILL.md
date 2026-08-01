@@ -23,7 +23,7 @@ allowed-tools:
 
 `douyin-creator-insight` 可独立安装和运行，`douyin-knowledge-base-pipeline` 不是前置依赖。若两者都存在，本 skill 只复用已登录的 persistent browser profile 和 ASR 环境变量，绝不读取收藏记录、修改增量 metadata，或加入收藏 skill 的 23:00 任务。
 
-首次运行默认选 `cloud`：用户配置一次 `DASHSCOPE_API_KEY` 后，先把媒体 URL 交给百炼，不下载视频；若百炼拒绝大视频且配置了 `SILICONFLOW_API_KEY`，再临时下载并上传音频到另一个云端 ASR，完成即清理。只有云端都失败时才回退 `local`（临时下载并用 Whisper，结束即删除）。也可选 `index`（标题、描述、互动数据、链接，不调用 ASR）。运行前先执行 `python3 scripts/integration.py`：它只读探测共享 profile、输出布局与占用状态；若 profile 正在被收藏任务使用，必须等待，不能并发打开 Chromium persistent profile。报告写入独立的 `<output-root>/creator-insight/`，不要求配置飞书或 Obsidian。
+首次运行默认选 `cloud`：用户配置一次 `DASHSCOPE_API_KEY` 后，先把媒体 URL 交给百炼，不下载视频；若百炼拒绝大视频且配置了 `SILICONFLOW_API_KEY`，再临时下载并上传音频到另一个云端 ASR，完成即清理。只有云端都失败时才回退 `local`（临时下载并用 Whisper，结束即删除）。skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。也可选 `index`（标题、描述、互动数据、链接，不调用 ASR）。运行前先执行 `python3 scripts/integration.py`：它只读探测共享 profile、输出布局与占用状态；若 profile 正在被收藏任务使用，必须等待，不能并发打开 Chromium persistent profile。报告写入独立的 `<output-root>/creator-insight/`，不要求配置飞书或 Obsidian。
 
 Actor 的价格、配额、可用性和 schema 会变化。运行前查看当前 Actor 页面；任何费用或耗时只能作为本次运行的实测结果陈述，不能沿用固定承诺。
 
