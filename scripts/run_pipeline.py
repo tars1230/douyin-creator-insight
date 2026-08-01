@@ -22,26 +22,31 @@ from resolver import (
     format_resolution_for_question,
 )
 from parser import parse_actor_dataset, parse_toon_output
-from selector import select_essentials, rank_top_engagement
-from transcript import fetch_transcripts
+from selector import select_essentials, select_transcript_candidates, rank_top_engagement
+from asr import transcribe_videos
 from categorizer import categorize_videos, build_categorization_prompt
 from report_builder import save_reports, build_html_report
 from quality_gate import run_quality_gate
 from browser_collector import collect_public_creator_sync
+from integration import probe_installation
 
 
 def run_pipeline(
     creator_query: str,
-    max_videos: int = 200,
-    transcript_count: int = 5,
+    max_videos: int = 1000,
+    transcript_count: Optional[int] = None,
     transcript_max_duration_minutes: float = 5.0,
-    output_dir: str = "./output",
+    output_dir: str = "./output/creator-insight",
     output_formats: list = None,
     apify_caller: Optional[Callable] = None,
     apify_browser: Optional[Callable] = None,
     browser: bool = False,
     browser_profile: Optional[Path] = None,
     headed: bool = False,
+    transcript_mode: str = "cloud",
+    allow_local_fallback: bool = True,
+    cloud_transcriber: Optional[Callable] = None,
+    local_transcriber: Optional[Callable] = None,
 ):
     """
     端到端编排。
@@ -56,7 +61,8 @@ def run_pipeline(
 
     print(f"🚀 开始 douyin-creator-insight pipeline")
     print(f"📌 输入: {creator_query}")
-    print(f"📊 参数: max_videos={max_videos}, transcript_count={transcript_count}")
+    transcript_label = transcript_count if transcript_count is not None else "adaptive"
+    print(f"📊 参数: max_videos={max_videos}, transcript_count={transcript_label}, transcript_mode={transcript_mode}")
     print(f"📁 输出目录: {output_dir}")
     print()
 
@@ -69,6 +75,10 @@ def run_pipeline(
 
     browser_items = None
     if browser:
+        integration = probe_installation(profile=browser_profile, output_dir=Path(output_dir))
+        if integration["conflicts"]:
+            print("   ❌ 共享配置检查未通过: " + "; ".join(integration["conflicts"]))
+            return None
         if input_type == "sec_uid":
             browser_input = f"https://www.douyin.com/user/{creator_query.strip()}"
         elif input_type == "url":
@@ -93,6 +103,7 @@ def run_pipeline(
             profile_url=metadata["profile_url"],
             followers_count=metadata.get("followers_count"),
             heart_count=metadata.get("heart_count"),
+            aweme_count=metadata.get("aweme_count"),
             signature=metadata.get("signature") or None,
         )
     else:
@@ -159,9 +170,27 @@ def run_pipeline(
             ],
         }
 
+    collection_status = {
+        "state": "unknown",
+        "declared_count": None,
+        "collected_count": None,
+        "reconciliation": "unavailable",
+        "stop_reason": None,
+    }
     if browser:
         raw_result = browser_items
         actor_name = "authorized_browser_public_profile"
+        collection_status = {
+            "state": "complete" if metadata.get("collection_complete") else "partial",
+            "declared_count": metadata.get("aweme_count"),
+            "collected_count": metadata.get("collected_count"),
+            "next_cursor": metadata.get("next_cursor"),
+            "stop_reason": metadata.get("collection_stop_reason"),
+            "declared_count_source": metadata.get("declared_count_source"),
+            "reconciliation": (
+                "verified" if metadata.get("aweme_count") is not None else "unavailable"
+            ),
+        }
     else:
         raw_result = apify_caller(
             actor="zen-studio/douyin-profile-scraper",
@@ -184,7 +213,21 @@ def run_pipeline(
         return None
 
     print(f"   ✅ 解析 {len(videos)} 条视频")
-    quality = run_quality_gate("videos", videos)
+    quality = run_quality_gate(
+        "videos",
+        {
+            "videos": videos,
+            "declared_count": collection_status.get("declared_count"),
+            "collection_complete": collection_status.get("state") == "complete"
+            or (
+                collection_status.get("declared_count") is not None
+                and collection_status.get("collected_count") is not None
+                and collection_status.get("collected_count")
+                >= collection_status.get("declared_count")
+            ),
+            "min_count": 10,
+        },
+    )
     print(f"   质量门禁: {quality['message']}")
     if not quality["passed"]:
         return None
@@ -194,31 +237,60 @@ def run_pipeline(
     print("━" * 50)
     print("Step 4: 选精华视频")
     print("━" * 50)
-    essentials = select_essentials(videos, top_k=transcript_count, max_duration_minutes=transcript_max_duration_minutes)
-    print(f"   选出 {len(essentials)} 条精华视频")
+    if transcript_mode == "index":
+        essentials = []
+        transcript_selection = {
+            "mode": "index_only",
+            "total_videos": len(videos),
+            "target_count": 0,
+            "selected_count": 0,
+            "segments": [],
+        }
+    elif transcript_count is None:
+        essentials, transcript_selection = select_transcript_candidates(videos)
+    else:
+        essentials = select_essentials(
+            videos,
+            top_k=min(transcript_count, len(videos)),
+            max_duration_minutes=transcript_max_duration_minutes,
+        )
+        transcript_selection = {
+            "mode": "explicit",
+            "total_videos": len(videos),
+            "target_count": len(essentials),
+            "selected_count": len(essentials),
+            "segments": [{"source": "engagement_score", "requested": transcript_count, "selected": len(essentials)}],
+        }
+    print(f"   选出 {len(essentials)} 条转写候选（{transcript_selection['mode']}）")
     for i, v in enumerate(essentials, 1):
         print(f"   {i}. {v.title or v.desc[:30]} (👍{v.stats.digg_count:,} ⭐{v.stats.collect_count:,})")
     print()
 
-    # Step 5: 抓取转写
+    # Step 5: ASR provider
     print("━" * 50)
     print("Step 5: 抓取语音转写")
     print("━" * 50)
-    if browser:
-        transcripts = [
-            Transcript(
-                aweme_id=video.aweme_id,
-                status=TranscriptStatus.SKIPPED,
-                actor_used="not_configured",
-                err_msg="浏览器模式只采集公开作品清单；未配置语音转写 provider",
-            )
-            for video in essentials
-        ]
-        print("   未配置语音转写 provider；已在报告中明确标记为未转写")
+    if transcript_mode == "index":
+        transcripts, transcript_source = transcribe_videos(essentials, mode="index")
+        transcript_quality = {
+            "stage": "transcripts",
+            "passed": True,
+            "message": "index_only: ASR not requested",
+        }
+        print("   ✅ index-only：不调用 ASR，不下载视频")
     else:
-        transcripts = fetch_transcripts(essentials, apify_caller=apify_caller)
-        quality = run_quality_gate("transcripts", transcripts)
-        print(f"   {quality['message']}")
+        # ASR is independent of the collection source. Cloud receives a media
+        # URL retained by the parser and never downloads it; local is explicit
+        # or a fallback after cloud failure.
+        transcripts, transcript_source = transcribe_videos(
+            essentials,
+            mode=transcript_mode,
+            allow_local_fallback=allow_local_fallback,
+            cloud_transcriber=cloud_transcriber,
+            local_transcriber=local_transcriber,
+        )
+        transcript_quality = run_quality_gate("transcripts", transcripts)
+        print(f"   {transcript_quality['message']}（{transcript_source}）")
     print()
 
     # Step 6: 内容分类
@@ -244,7 +316,10 @@ def run_pipeline(
         categories=categories,
         engagement_top=top_videos,
         data_source=("用户已授权浏览器中的公开博主页接口" if browser else "Apify zen-studio/douyin-profile-scraper"),
-        transcript_source=("未配置（精华候选已标记 skipped）" if browser else "Apify transcript actor"),
+        transcript_source=transcript_source,
+        transcript_quality=transcript_quality,
+        transcript_selection=transcript_selection,
+        collection=collection_status,
     )
 
     paths = save_reports(final_report, top_videos, output_dir, formats=output_formats)
@@ -252,12 +327,20 @@ def run_pipeline(
     for fmt, path in paths.items():
         print(f"   - {fmt}: {path}")
 
+    status = "partial" if collection_status["state"] == "partial" else (
+        "success" if transcript_quality["passed"] else "degraded"
+    )
     return {
-        "status": "success",
+        "status": status,
         "creator": resolution.nickname or resolution.douyin_id,
         "video_count": len(videos),
+        "collection": collection_status,
         "transcript_count": sum(1 for transcript in transcripts if transcript.status == TranscriptStatus.SUCCESS),
         "transcript_candidate_count": len(transcripts),
+        "transcript_selection": transcript_selection,
+        "transcript_mode": transcript_mode,
+        "transcript_source": transcript_source,
+        "transcript_quality": transcript_quality,
         "output_paths": paths,
     }
 
@@ -277,10 +360,21 @@ def load_callable(spec: str) -> Callable:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Douyin Creator Insight Pipeline")
     parser.add_argument("--creator", required=True, help="抖音号 / 昵称 / 主页 URL")
-    parser.add_argument("--max-videos", type=int, default=200, help="抓取视频条数")
-    parser.add_argument("--transcript-count", type=int, default=5, help="转写视频条数")
+    parser.add_argument("--max-videos", type=int, default=1000, help="抓取视频条数上限")
+    parser.add_argument("--transcript-count", type=int, help="转写视频条数；未指定时按账号规模自动分档")
     parser.add_argument("--max-duration", type=float, default=5.0, help="转写时长上限（分钟）")
-    parser.add_argument("--output-dir", default="./output", help="输出目录")
+    parser.add_argument(
+        "--transcript-mode",
+        choices=("cloud", "local", "index"),
+        default="cloud",
+        help="转写模式：cloud 默认百炼 URL ASR；local 使用临时文件 Whisper；index 只做信息索引",
+    )
+    parser.add_argument(
+        "--no-local-fallback",
+        action="store_true",
+        help="云端 ASR 失败时不回退本地 Whisper",
+    )
+    parser.add_argument("--output-dir", default="./output/creator-insight", help="Creator Insight 专用输出目录")
     parser.add_argument("--format", nargs="+", default=["html", "json", "md"], help="输出格式")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
@@ -328,6 +422,8 @@ def main(argv=None) -> int:
         browser=args.browser,
         browser_profile=args.browser_profile,
         headed=args.headed,
+        transcript_mode=args.transcript_mode,
+        allow_local_fallback=not args.no_local_fallback,
     )
 
     if result is None:

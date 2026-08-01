@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Adaptive transcript selection: accounts with 30 or fewer videos use all-video transcription; larger accounts use bounded, deduplicated layers of likes, saves, and recent posts.
+- Selection metadata is included in JSON results and summarized in HTML and Markdown reports.
+- Browser collection records declared work count, collected count, and pagination completion; capped collections return `partial`.
+- Independent `cloud`, `local`, and `index` transcript modes. Cloud is the default, local Whisper is a final fallback, and index mode never invokes ASR.
+- Non-mutating integration probe, neutral browser profile for standalone installs, shared-profile busy detection, and isolated Creator Insight output.
+
+### Fixed
+- Profile metadata extraction now prefers exact `sec_uid` matches over sec_uid-less wrapper objects.
+- Profile API author metadata now wins over per-post author fields when merging declared counts and account stats.
+- Timed-out or error-shaped transcript payloads are marked failed and excluded from report text.
+- Missing transcript actor results now receive an explicit per-video failure status.
+- Transcript quality failures return `degraded` instead of ordinary success, with provider and quality details in the result.
+
+### Changed
+- `douyin-knowledge-base-pipeline` and `douyin-mcp` are optional integrations, not installation or runtime dependencies.
+- Cloud ASR first attempts DashScope URL recognition, then an optional temporary-audio cloud upload for large media; temporary media is always cleaned.
+
 ## [1.1.0] - 2026-07-30
 
 ### Added

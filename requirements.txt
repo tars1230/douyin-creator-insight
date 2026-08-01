@@ -17,6 +17,10 @@
 # 可选依赖（按需安装）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+# 本地 Whisper fallback（仅 transcript-mode=local 或云端全部失败时）
+# openai-whisper
+# 系统还需要 ffmpeg；云端正常时不会加载 Whisper 模型。
+
 # 更美观的报告模板渲染（assets/ 里默认就用这个）
 # jinja2==3.1.4
 

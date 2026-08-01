@@ -58,8 +58,13 @@ def fetch_transcripts(
     parsed_primary = _parse_transcript_result(primary_result, primary_actor)
 
     # 4. 对失败的尝试备用 actor
-    failed_ids = {v.aweme_id for v, t in zip(videos, parsed_primary)
-                  if t.status != TranscriptStatus.SUCCESS}
+    by_id_primary = {t.aweme_id: t for t in parsed_primary if t.aweme_id}
+    failed_ids = {
+        video.aweme_id
+        for video in videos
+        if by_id_primary.get(video.aweme_id, Transcript(aweme_id=video.aweme_id)).status
+        != TranscriptStatus.SUCCESS
+    }
 
     if failed_ids:
         # 过滤出失败的视频
@@ -76,7 +81,6 @@ def fetch_transcripts(
         parsed_backup = _parse_transcript_result(backup_result, TRANSCRIPT_ACTORS[1]["name"])
 
         # 合并：主 actor 成功的保留，失败的用备用
-        by_id_primary = {t.aweme_id: t for t in parsed_primary}
         by_id_backup = {t.aweme_id: t for t in parsed_backup}
 
         for v in videos:
@@ -91,7 +95,17 @@ def fetch_transcripts(
                     err_msg="Both primary and backup actors failed",
                 ))
     else:
-        transcripts = parsed_primary
+        transcripts = [
+            by_id_primary.get(
+                video.aweme_id,
+                Transcript(
+                    aweme_id=video.aweme_id,
+                    status=TranscriptStatus.FAILED,
+                    err_msg="Transcript actor returned no result for this video",
+                ),
+            )
+            for video in videos
+        ]
 
     return transcripts
 
@@ -166,7 +180,7 @@ def _parse_transcript_result(
         # 判断状态
         if not text or len(text) < 10:
             status = TranscriptStatus.EMPTY
-        elif text.startswith("[") and "transcript failed" in text.lower():
+        elif item.get("errMsg") or _looks_like_failure_text(text):
             status = TranscriptStatus.FAILED
         else:
             status = TranscriptStatus.SUCCESS
@@ -181,6 +195,13 @@ def _parse_transcript_result(
             err_msg=item.get("errMsg"),
         ))
     return transcripts
+
+
+def _looks_like_failure_text(text: str) -> bool:
+    normalized = text.strip().lower()
+    return normalized.startswith((
+        "[mcporter]", "error:", "timeout", "timed out", "transcript failed",
+    )) or "appears offline" in normalized
 
 
 def merge_transcripts_to_videos(

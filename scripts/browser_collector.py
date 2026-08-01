@@ -2,23 +2,38 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import platform
 from pathlib import Path
 from typing import Any
+from integration import profile_lock
 
 
 POSTS_API_URL = "https://www.douyin.com/aweme/v1/web/aweme/post/"
+PROFILE_API_URL = "https://www.douyin.com/aweme/v1/web/user/profile/other/"
 
 
 def default_profile_dir() -> Path:
-    """Share the explicit profile created by douyin-favorites-to-knowledge."""
+    """Reuse an existing Douyin profile or choose an independent shared path."""
+    configured = os.environ.get("DOUYIN_BROWSER_PROFILE")
+    if configured:
+        return Path(configured).expanduser()
+    legacy_candidates = [
+        Path.home() / ".openclaw" / "workspace" / "skills" / "douyin-favorites-to-knowledge" / "browser-profile",
+        Path.home() / ".openclaw" / "workspace" / ".douyin-pw-profile",
+    ]
     if platform.system() == "Darwin":
         root = Path.home() / "Library" / "Application Support"
     elif platform.system() == "Windows":
         root = Path.home() / "AppData" / "Local"
     else:
         root = Path.home() / ".local" / "state"
-    return root / "douyin-favorites-to-knowledge" / "browser-profile"
+    legacy_candidates.append(root / "douyin-favorites-to-knowledge" / "browser-profile")
+    neutral_profile = root / "douyin-workflows" / "browser-profile"
+    for candidate in [*legacy_candidates, neutral_profile]:
+        if candidate.exists():
+            return candidate
+    return neutral_profile
 
 
 def profile_url_from_resolved_url(url: str) -> tuple[str, str]:
@@ -47,6 +62,16 @@ def normalize_browser_item(item: dict[str, Any]) -> dict[str, Any] | None:
         "createTime": item.get("create_time"),
         "videoMeta": {"duration": video.get("duration"), "cover": ((video.get("cover") or {}).get("url_list") or [""])[0]},
         "shareUrl": f"https://www.douyin.com/video/{aweme_id}",
+        "videoUrl": _first_url(
+            (video.get("play_addr") or {}).get("url_list")
+            or (video.get("download_addr") or {}).get("url_list")
+            or []
+        ),
+        "audioUrl": _first_url(
+            (video.get("audio") or {}).get("url_list")
+            or []
+        ),
+        "mediaSource": "douyin_browser_detail_api",
         "hashtags": hashtags,
         "statistics": {
             "diggCount": stats.get("digg_count"),
@@ -57,6 +82,53 @@ def normalize_browser_item(item: dict[str, Any]) -> dict[str, Any] | None:
         },
         "authorMeta": {"name": author.get("nickname"), "signature": author.get("signature"), "followersCount": author.get("follower_count"), "heartCount": author.get("total_favorited")},
     }
+
+
+def _first_url(value: Any) -> str | None:
+    if isinstance(value, list):
+        return next((str(item) for item in value if item), None)
+    return str(value) if value else None
+
+
+def _has_author_shape(candidate: dict[str, Any]) -> bool:
+    return any(
+        key in candidate
+        for key in ("sec_uid", "uid", "nickname", "aweme_count", "follower_count", "total_favorited", "signature")
+    )
+
+
+def _meaningful_values(author: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in author.items()
+        if value is not None and not (isinstance(value, str) and value == "")
+    }
+
+
+def _profile_author(data: dict[str, Any], sec_uid: str) -> dict[str, Any]:
+    """Extract profile metadata across known Douyin web response shapes."""
+    user_info = data.get("user_info")
+    candidates = [data.get("user")]
+    if isinstance(user_info, dict):
+        candidates.extend([user_info.get("user"), user_info])
+    else:
+        candidates.append(user_info)
+    fallback: dict[str, Any] = {}
+    for candidate in candidates:
+        if not isinstance(candidate, dict) or not _has_author_shape(candidate):
+            continue
+        if candidate.get("sec_uid") == sec_uid:
+            return candidate
+        if candidate.get("sec_uid") is None and not fallback:
+            fallback = candidate
+    return fallback
+
+
+def _merge_author_metadata(profile_metadata: dict[str, Any], post_author: dict[str, Any]) -> dict[str, Any]:
+    """Prefer profile API metadata while allowing per-post author fields to fill gaps."""
+    merged = _meaningful_values(post_author)
+    merged.update(_meaningful_values(profile_metadata))
+    return merged
 
 
 async def collect_public_creator(
@@ -76,9 +148,12 @@ async def collect_public_creator(
 
     resolved_profile_dir = (profile_dir or default_profile_dir()).expanduser().resolve()
     resolved_profile_dir.mkdir(parents=True, exist_ok=True)
-    playwright = await async_playwright().start()
+    guard = profile_lock(resolved_profile_dir)
+    guard.__enter__()
+    playwright = None
     context = None
     try:
+        playwright = await async_playwright().start()
         for channel in ("chrome", "msedge", None):
             kwargs: dict[str, Any] = {
                 "user_data_dir": str(resolved_profile_dir),
@@ -101,7 +176,28 @@ async def collect_public_creator(
         profile_url, sec_uid = profile_url_from_resolved_url(page.url)
         await page.goto(profile_url, wait_until="domcontentloaded", timeout=45_000)
 
+        # The post-list response often omits `user`; fetch profile metadata separately
+        # so declared counts can be reconciled instead of inferred from one page.
+        profile_metadata: dict[str, Any] = {}
+        try:
+            profile_response = await page.evaluate(
+                r'''async ({apiUrl, secUid}) => {
+                  const params = new URLSearchParams({device_platform:'webapp', aid:'6383', sec_user_id:secUid});
+                  const reply = await fetch(apiUrl + '?' + params, {credentials:'include'});
+                  const data = await reply.json().catch(() => ({}));
+                  return {http_status:reply.status, status_code:data.status_code, data};
+                }''',
+                {"apiUrl": PROFILE_API_URL, "secUid": sec_uid},
+            )
+            if profile_response.get("http_status") == 200 and profile_response.get("status_code") == 0:
+                profile_metadata = _profile_author(profile_response.get("data") or {}, sec_uid)
+        except Exception:
+            # Collection remains useful when this optional metadata endpoint is blocked.
+            profile_metadata = {}
+
         cursor = 0
+        has_more = False
+        next_cursor = 0
         seen: set[str] = set()
         collected: list[dict[str, Any]] = []
         creator_author: dict[str, Any] = {}
@@ -132,12 +228,24 @@ async def collect_public_creator(
                     collected.append(normalized)
                     if len(collected) >= max_videos:
                         break
+            has_more = bool(response.get("has_more"))
             next_cursor = int(response.get("next_cursor") or 0)
-            if not response.get("has_more") or not next_cursor or next_cursor == cursor:
+            if len(collected) >= max_videos:
+                break
+            if not has_more or not next_cursor or next_cursor == cursor:
                 break
             cursor = next_cursor
         if not collected:
             raise ValueError("公开主页未返回可用视频；请确认链接、登录状态或稍后重试")
+        creator_author = _merge_author_metadata(profile_metadata, creator_author)
+        declared = profile_metadata.get("aweme_count", creator_author.get("aweme_count"))
+        try:
+            declared_n = int(declared) if declared is not None else None
+        except (TypeError, ValueError):
+            declared_n = None
+        complete = (not has_more) and (
+            declared_n is None or len(collected) >= declared_n
+        )
         return {
             "sec_uid": sec_uid,
             "profile_url": profile_url,
@@ -145,11 +253,25 @@ async def collect_public_creator(
             "signature": creator_author.get("signature") or "",
             "followers_count": creator_author.get("follower_count"),
             "heart_count": creator_author.get("total_favorited"),
+            "aweme_count": declared_n,
+            "collected_count": len(collected),
+            "collection_complete": complete,
+            "next_cursor": next_cursor if has_more else None,
+            "collection_stop_reason": (
+                "max_videos_reached" if len(collected) >= max_videos else
+                "has_more_false" if not has_more else
+                "empty_page" if not page_items else "cursor_stalled"
+            ),
+            "declared_count_source": "profile_api" if profile_metadata.get("aweme_count") is not None else (
+                "post_author" if creator_author.get("aweme_count") is not None else None
+            ),
         }, collected
     finally:
         if context is not None:
             await context.close()
-        await playwright.stop()
+        if playwright is not None:
+            await playwright.stop()
+        guard.__exit__(None, None, None)
 
 
 def collect_public_creator_sync(*args: Any, **kwargs: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:

@@ -5,7 +5,7 @@ Douyin Creator Insight - Engagement Selector
 from __future__ import annotations
 
 import math
-from typing import List
+from typing import Any, Dict, List, Tuple
 from schemas import Video, EngagementScore
 
 
@@ -99,6 +99,66 @@ def select_essentials(
 
     # 3. 返回 top_k
     return [item[1] for item in scored[:top_k]]
+
+
+def select_transcript_candidates(videos: List[Video]) -> Tuple[List[Video], Dict[str, Any]]:
+    """Select a cost-bounded, representative transcription sample by account size."""
+    total = len(videos)
+    if total <= 30:
+        return list(videos), {
+            "mode": "all",
+            "total_videos": total,
+            "target_count": total,
+            "selected_count": total,
+            "segments": [{"source": "all_videos", "requested": total, "selected": total}],
+        }
+
+    if total <= 100:
+        quotas = (("top_digg", 50),)
+    elif total <= 300:
+        quotas = (("top_digg", 35), ("top_collect", 15), ("recent", 10))
+    elif total <= 800:
+        quotas = (("top_digg", 40), ("top_collect", 20), ("recent", 20))
+    else:
+        quotas = (("top_digg", 50), ("top_collect", 25), ("recent", 25))
+
+    ranked = {
+        "top_digg": sorted(videos, key=lambda v: v.stats.digg_count, reverse=True),
+        "top_collect": sorted(videos, key=lambda v: v.stats.collect_count, reverse=True),
+        "recent": sorted(videos, key=lambda v: v.create_time or 0, reverse=True),
+    }
+    target_count = min(total, sum(quota for _, quota in quotas))
+    selected: List[Video] = []
+    selected_ids = set()
+    segments = []
+
+    for source, quota in quotas:
+        before = len(selected)
+        for video in ranked[source]:
+            if video.aweme_id not in selected_ids:
+                selected.append(video)
+                selected_ids.add(video.aweme_id)
+            if len(selected) - before >= quota:
+                break
+        segments.append({"source": source, "requested": quota, "selected": len(selected) - before})
+
+    # Overlap between layers is expected. Fill empty slots with the broad engagement rank.
+    if len(selected) < target_count:
+        for video in rank_top_engagement(videos, top_k=total):
+            if video.aweme_id not in selected_ids:
+                selected.append(video)
+                selected_ids.add(video.aweme_id)
+            if len(selected) >= target_count:
+                break
+        segments.append({"source": "engagement_backfill", "requested": target_count, "selected": len(selected)})
+
+    return selected, {
+        "mode": "adaptive",
+        "total_videos": total,
+        "target_count": target_count,
+        "selected_count": len(selected),
+        "segments": segments,
+    }
 
 
 def rank_top_engagement(videos: List[Video], top_k: int = 40) -> List[Video]:

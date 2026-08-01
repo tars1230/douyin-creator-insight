@@ -78,6 +78,9 @@ class Video:
     duration_seconds: Optional[float] = None
     cover_url: Optional[str] = None
     share_url: Optional[str] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    media_source: Optional[str] = None
     hashtags: List[str] = field(default_factory=list)
     series_name: Optional[str] = None
     stats: VideoStats = field(default_factory=VideoStats)
@@ -94,6 +97,9 @@ class Video:
             "duration_seconds": self.duration_seconds,
             "cover_url": self.cover_url,
             "share_url": self.share_url,
+            "video_url": self.video_url,
+            "audio_url": self.audio_url,
+            "media_source": self.media_source,
             "hashtags": self.hashtags,
             "series_name": self.series_name,
             "stats": asdict(self.stats),
@@ -159,6 +165,9 @@ class PipelineReport:
     engagement_top: List[Video] = field(default_factory=list)
     data_source: str = "Apify profile actor"
     transcript_source: str = "Apify transcript actor"
+    transcript_quality: Dict[str, Any] = field(default_factory=dict)
+    transcript_selection: Dict[str, Any] = field(default_factory=dict)
+    collection: Dict[str, Any] = field(default_factory=dict)
     research_goal: str = "creator_insight"
     generated_at: datetime = field(default_factory=datetime.now)
 
@@ -171,6 +180,9 @@ class PipelineReport:
             "engagement_top": [v.to_dict() for v in self.engagement_top],
             "data_source": self.data_source,
             "transcript_source": self.transcript_source,
+            "transcript_quality": self.transcript_quality,
+            "transcript_selection": self.transcript_selection,
+            "collection": self.collection,
             "research_goal": self.research_goal,
             "generated_at": self.generated_at.isoformat(),
         }
