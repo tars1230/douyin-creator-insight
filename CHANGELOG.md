@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-01
+
+### Added
+- First-run `scripts/setup.py` for explicit `cloud` / `local` / `index` selection, with non-secret config persistence.
+- Setup and integration detection for existing `douyin-favorites-to-knowledge` installs, shared browser profiles, and reusable transcription preference.
+- Bailian API Key guidance when `DASHSCOPE_API_KEY` is missing.
+
+### Fixed
+- Missing cloud ASR credentials no longer trigger an implicit local Whisper fallback or video download; users must explicitly choose `local`.
+
 ## [1.2.1] - 2026-08-01
 
 ### Added

@@ -14,6 +14,7 @@ class RepositoryTests(unittest.TestCase):
         header = text.split("---", 2)[1]
         self.assertRegex(header, r"(?m)^name:\s+douyin-creator-insight\s*$")
         self.assertRegex(header, r"(?m)^description:\s+.+$")
+        self.assertNotIn("allowed-tools", header)
 
     def test_no_private_paths_or_live_secrets(self):
         patterns = {

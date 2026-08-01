@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -86,6 +87,28 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(local_calls, ["1"])
         self.assertIn("cloud-test", source)
         self.assertIn("local-test", source)
+
+    def test_missing_cloud_key_does_not_trigger_implicit_local_download(self):
+        videos = self.make_videos(1)
+        local_calls = []
+
+        def cloud(video):
+            return Transcript(
+                video.aweme_id,
+                TranscriptStatus.FAILED,
+                actor_used="dashscope-cloud",
+                err_msg="DASHSCOPE_API_KEY is not configured",
+            )
+
+        def local(video):
+            local_calls.append(video.aweme_id)
+            return Transcript(video.aweme_id, TranscriptStatus.SUCCESS, "must not run", actor_used="local-test")
+
+        transcripts, source = transcribe_videos(videos, cloud_transcriber=cloud, local_transcriber=local)
+        self.assertEqual(local_calls, [])
+        self.assertEqual(transcripts[0].status, TranscriptStatus.FAILED)
+        self.assertIn("choose local explicitly", transcripts[0].err_msg or "")
+        self.assertIn("dashscope-cloud", source)
 
     def test_index_mode_never_invokes_asr_or_downloads(self):
         def should_not_run(_video):
@@ -247,6 +270,36 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('"status": "dry_run"', result.stdout)
             self.assertEqual(list(Path(temp_dir).iterdir()), [])
+
+    def test_cli_missing_cloud_key_blocks_before_local_fallback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env = dict(os.environ)
+            env.pop("DASHSCOPE_API_KEY", None)
+            env["HOME"] = temp_dir
+            env["HERMES_HOME"] = str(Path(temp_dir) / ".hermes")
+            env["XDG_CONFIG_HOME"] = str(Path(temp_dir) / ".config")
+            config_path = Path(temp_dir) / "creator-config.json"
+            env["DOUYIN_CREATOR_CONFIG"] = str(config_path)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "run_pipeline.py"),
+                    "--creator",
+                    "https://www.douyin.com/user/MS4wFixture",
+                    "--adapter",
+                    "fixtures:call_actor",
+                    "--output-dir",
+                    temp_dir,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                cwd=temp_dir,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("尚未配置 DASHSCOPE_API_KEY", result.stdout)
+            self.assertIn("--transcript-mode local / index", result.stdout)
 
     def test_fixture_e2e_generates_all_formats(self):
         def fixture_adapter(*, actor, input, wait_secs):

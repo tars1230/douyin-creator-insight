@@ -17,11 +17,12 @@ PROFILE_API_URL = "https://www.douyin.com/aweme/v1/web/user/profile/other/"
 def default_profile_dir() -> Path:
     """Reuse an existing Douyin profile or choose an independent shared path."""
     ensure_runtime_env()
-    configured = os.environ.get("DOUYIN_BROWSER_PROFILE")
+    configured = os.environ.get("DOUYIN_BROWSER_PROFILE") or os.environ.get("DOUYIN_FAVORITES_PROFILE_DIR")
     if configured:
         return Path(configured).expanduser()
     legacy_candidates = [
         Path.home() / ".openclaw" / "workspace" / "skills" / "douyin-favorites-to-knowledge" / "browser-profile",
+        Path.home() / ".shared" / "skills" / "douyin-favorites-to-knowledge" / "browser-profile",
         Path.home() / ".openclaw" / "workspace" / ".douyin-pw-profile",
     ]
     if platform.system() == "Darwin":

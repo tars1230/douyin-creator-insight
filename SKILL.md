@@ -1,16 +1,6 @@
 ---
 name: douyin-creator-insight
 description: 分析公开抖音创作者的视频主题、互动结构和代表内容，并输出 HTML、Markdown、JSON 报告。适用于研究某个抖音博主、拆解选题和内容结构；不用于收藏夹同步、私密账号或绕过平台访问控制。
-allowed-tools:
-  - mcp__apify__call-actor
-  - mcp__apify__get-dataset-items
-  - mcp__apify__apify--rag-web-browser
-  - WebSearch
-  - WebFetch
-  - Read
-  - Write
-  - Bash
-  - AskUserQuestion
 ---
 
 # Douyin Creator Insight
@@ -21,9 +11,9 @@ allowed-tools:
 
 ## 安装与共享配置
 
-`douyin-creator-insight` 可独立安装和运行，`douyin-knowledge-base-pipeline` 不是前置依赖。若两者都存在，本 skill 只复用已登录的 persistent browser profile 和 ASR 环境变量，绝不读取收藏记录、修改增量 metadata，或加入收藏 skill 的 23:00 任务。
+`douyin-creator-insight` 可独立安装和运行，`douyin-favorites-to-knowledge`（旧名/旧目录可能是 `douyin-knowledge-base-pipeline`）不是前置依赖。若两者都存在，本 skill 只复用已登录的 persistent browser profile 和 ASR 环境变量，绝不读取收藏记录、修改增量 metadata，或加入收藏 skill 的 23:00 任务。
 
-首次运行默认选 `cloud`：用户配置一次 `DASHSCOPE_API_KEY` 后，先把媒体 URL 交给百炼，不下载视频；若百炼拒绝大视频且配置了 `SILICONFLOW_API_KEY`，再临时下载并上传音频到另一个云端 ASR，完成即清理。只有云端都失败时才回退 `local`（临时下载并用 Whisper，结束即删除）。skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。也可选 `index`（标题、描述、互动数据、链接，不调用 ASR）。运行前先执行 `python3 scripts/integration.py`：它只读探测共享 profile、输出布局与占用状态；若 profile 正在被收藏任务使用，必须等待，不能并发打开 Chromium persistent profile。报告写入独立的 `<output-root>/creator-insight/`，不要求配置飞书或 Obsidian。
+首次运行先执行 `python3 scripts/setup.py`。它只写非敏感偏好：`cloud`（百炼，推荐）/ `local`（Whisper）/ `index`（只索引），以及可选 profile/output 位置；不保存 API key、cookie 或 token。若检测到已安装 `douyin-favorites-to-knowledge`，优先复用其已登录浏览器 profile 和转录偏好，但状态、账本、输出和 23:00 任务仍完全隔离。若选择 `cloud` 且未检测到 `DASHSCOPE_API_KEY`，setup 和真实运行都必须提示阿里云百炼官方 API Key 申请说明 `https://help.aliyun.com/zh/model-studio/get-api-key`，让用户把 Key 放到本机安全环境变量/Secret Manager；在 Key 缺失时不得自动下载视频或静默切本地 Whisper。配置好 `DASHSCOPE_API_KEY` 后，默认把媒体 URL 交给百炼，不下载视频；若百炼拒绝大视频且配置了 `SILICONFLOW_API_KEY`，可临时下载并上传音频到另一个云端 ASR，完成即清理。只有云端已配置但真实调用失败时才回退 `local`；`index` 永不调用 ASR。skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。运行前先执行 `python3 scripts/integration.py`：它只读探测共享 profile、输出布局与占用状态；若 profile 正在被收藏任务使用，必须等待，不能并发打开 Chromium persistent profile。报告写入独立的 `<output-root>/creator-insight/`，不要求配置飞书或 Obsidian。
 
 Actor 的价格、配额、可用性和 schema 会变化。运行前查看当前 Actor 页面；任何费用或耗时只能作为本次运行的实测结果陈述，不能沿用固定承诺。
 
@@ -82,6 +72,7 @@ Agent 已经完成采集后，可直接复用 `scripts/` 中的解析、筛选�
 python3 scripts/run_pipeline.py --creator <profile_url> --dry-run
 
 # 默认真实路径：已登录浏览器中的公开主页接口
+python3 scripts/setup.py
 python3 scripts/integration.py
 python3 scripts/run_pipeline.py --creator '<share_or_profile_url>' --browser
 
@@ -107,7 +98,8 @@ python3 scripts/run_pipeline.py \
 | 昵称搜索验证码/同名 | 不绕过验证码，不自动选人；要求主页或分享链接 |
 | Profile actor 失败 | 核对 schema 后使用记录在 reference 中的 fallback |
 | 视频不足或字段异常 | 质量门阻断，保留原始响应供排查 |
-| Cloud ASR 失败 | 记录云端真实错误，再回退本地 Whisper；`--no-local-fallback` 时只报告失败 |
+| 未配置 `DASHSCOPE_API_KEY` | 停止真实转写，提示百炼 API Key 官方申请入口；不自动下载视频或切本地 Whisper |
+| Cloud ASR 失败 | 仅在云端已配置但真实调用失败时记录错误，再回退本地 Whisper；`--no-local-fallback` 时只报告失败 |
 | 本地 Whisper 失败 | 清理临时媒体并标记 `failed` 或 `empty_transcript` |
 | 配额不足 | 停止真实调用，建议用户缩小样本或稍后重试 |
 | 输出写入失败 | 返回非成功状态和明确路径，不宣称完成 |

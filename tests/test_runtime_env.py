@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -10,9 +11,11 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import runtime_env  # noqa: E402
+import setup_config  # noqa: E402
 from asr import transcribe_video_cloud, transcribe_video_local, transcribe_videos  # noqa: E402
 from browser_collector import default_profile_dir  # noqa: E402
 from schemas import Transcript, TranscriptStatus, Video  # noqa: E402
+from setup_config import detect_existing_setup, load_setup_config, save_setup_config  # noqa: E402
 
 
 class RuntimeEnvTests(unittest.TestCase):
@@ -24,6 +27,7 @@ class RuntimeEnvTests(unittest.TestCase):
         for key in runtime_env.RUNTIME_ENV_KEYS:
             os.environ.pop(key, None)
         self._saved_runtime_files = runtime_env.RUNTIME_ENV_FILES
+        self._saved_creator_config = os.environ.get("DOUYIN_CREATOR_CONFIG")
         runtime_env.reset_runtime_env_cache()
 
     def tearDown(self):
@@ -33,6 +37,10 @@ class RuntimeEnvTests(unittest.TestCase):
             else:
                 os.environ[key] = value
         runtime_env.RUNTIME_ENV_FILES = self._saved_runtime_files
+        if self._saved_creator_config is None:
+            os.environ.pop("DOUYIN_CREATOR_CONFIG", None)
+        else:
+            os.environ["DOUYIN_CREATOR_CONFIG"] = self._saved_creator_config
         runtime_env.reset_runtime_env_cache()
 
     def test_loader_fills_missing_keys_without_overwriting_existing_values(self):
@@ -143,6 +151,70 @@ class RuntimeEnvTests(unittest.TestCase):
             finally:
                 runtime_env.RUNTIME_ENV_FILES = old_files
             self.assertEqual(resolved, profile_dir)
+
+    def test_default_profile_dir_accepts_favorites_profile_env_alias(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_file = Path(temp_dir) / ".env"
+            profile_dir = Path(temp_dir) / "favorites-profile"
+            env_file.write_text(f"DOUYIN_FAVORITES_PROFILE_DIR={profile_dir}\n", encoding="utf-8")
+            old_files = runtime_env.RUNTIME_ENV_FILES
+            runtime_env.RUNTIME_ENV_FILES = (env_file,)
+            os.environ.pop("DOUYIN_BROWSER_PROFILE", None)
+            os.environ.pop("DOUYIN_FAVORITES_PROFILE_DIR", None)
+            try:
+                resolved = default_profile_dir()
+            finally:
+                runtime_env.RUNTIME_ENV_FILES = old_files
+            self.assertEqual(resolved, profile_dir)
+
+    def test_detect_existing_setup_reuses_favorites_mode_without_exposing_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = Path(temp_dir) / "favorites.json"
+            config.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "knowledge_dir": "/tmp/knowledge",
+                        "ledger_path": "/tmp/ledger.sqlite3",
+                        "mode": "full",
+                        "transcription": {"enabled": True, "provider": "bailian", "model": "qwen3-asr-flash"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            original = setup_config._favorites_config_candidates
+            setup_config._favorites_config_candidates = lambda: (config,)
+            try:
+                detected = detect_existing_setup()
+            finally:
+                setup_config._favorites_config_candidates = original
+            self.assertTrue(detected["favorites_skill_installed"])
+            self.assertEqual(detected["favorites_transcript_mode"], "cloud")
+            self.assertNotIn("knowledge_dir", detected)
+
+    def test_detect_existing_setup_recognizes_shared_favorites_install_without_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            skill_root = Path(temp_dir) / "douyin-favorites-to-knowledge"
+            skill_root.mkdir()
+            original_configs = setup_config._favorites_config_candidates
+            original_roots = setup_config._favorites_skill_root_candidates
+            setup_config._favorites_config_candidates = lambda: ()
+            setup_config._favorites_skill_root_candidates = lambda: (skill_root,)
+            try:
+                detected = detect_existing_setup()
+            finally:
+                setup_config._favorites_config_candidates = original_configs
+                setup_config._favorites_skill_root_candidates = original_roots
+            self.assertTrue(detected["favorites_skill_installed"])
+            self.assertIsNone(detected["favorites_transcript_mode"])
+
+    def test_setup_config_never_stores_api_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "creator.json"
+            save_setup_config("cloud", path=path)
+            payload = load_setup_config(path)
+            self.assertEqual(payload["transcript_mode"], "cloud")
+            self.assertNotIn("DASHSCOPE_API_KEY", path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
