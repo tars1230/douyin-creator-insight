@@ -18,6 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from schemas import Transcript, TranscriptStatus, Video
+from runtime_env import ensure_runtime_env
 
 
 CloudTranscriber = Callable[[Video], Transcript]
@@ -38,6 +39,7 @@ def transcribe_videos(
     ``cloud`` is the default. A cloud failure falls back to local Whisper only
     when allowed. ``index`` deliberately never invokes an ASR provider.
     """
+    ensure_runtime_env()
     if mode not in {"cloud", "local", "index"}:
         raise ValueError("transcript mode must be cloud, local, or index")
 
@@ -98,6 +100,7 @@ def transcribe_video_cloud(video: Video) -> Transcript:
     upstream rejects a large Douyin video, it uses an optional cloud-upload
     provider with temporary media and removes it before returning.
     """
+    ensure_runtime_env()
     direct = _transcribe_dashscope_url(video)
     if direct.status == TranscriptStatus.SUCCESS:
         return direct
@@ -208,6 +211,7 @@ def _transcribe_siliconflow_upload(video: Video) -> Transcript:
 
 def transcribe_video_local(video: Video) -> Transcript:
     """Download only for local Whisper and always remove temporary media."""
+    ensure_runtime_env()
     media_url = video.audio_url or video.video_url
     if not media_url:
         return _failed(video, "local-whisper", "no public media URL available for local fallback")

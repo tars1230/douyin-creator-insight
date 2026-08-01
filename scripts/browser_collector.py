@@ -7,6 +7,7 @@ import platform
 from pathlib import Path
 from typing import Any
 from integration import profile_lock
+from runtime_env import ensure_runtime_env
 
 
 POSTS_API_URL = "https://www.douyin.com/aweme/v1/web/aweme/post/"
@@ -15,6 +16,7 @@ PROFILE_API_URL = "https://www.douyin.com/aweme/v1/web/user/profile/other/"
 
 def default_profile_dir() -> Path:
     """Reuse an existing Douyin profile or choose an independent shared path."""
+    ensure_runtime_env()
     configured = os.environ.get("DOUYIN_BROWSER_PROFILE")
     if configured:
         return Path(configured).expanduser()

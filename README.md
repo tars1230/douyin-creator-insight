@@ -20,7 +20,7 @@
 
 ### 独立运行，可选复用收藏 skill
 
-本 skill 可以独立安装。第一次运行只需完成一次抖音登录，并配置 `DASHSCOPE_API_KEY`；默认 `cloud` 模式先把公开媒体 URL 直接交给百炼兼容 ASR。百炼拒绝大视频时，若配置了可选 `SILICONFLOW_API_KEY`，会临时下载并上传音频到云端 ASR，完成即清理；只有云端都失败才进入 `local`（临时下载 + Whisper）。`index` 只索引标题、描述、互动数据和链接。
+本 skill 可以独立安装。第一次运行只需完成一次抖音登录，并配置 `DASHSCOPE_API_KEY`；默认 `cloud` 模式先把公开媒体 URL 直接交给百炼兼容 ASR。百炼拒绝大视频时，若配置了可选 `SILICONFLOW_API_KEY`，会临时下载并上传音频到云端 ASR，完成即清理；只有云端都失败才进入 `local`（临时下载 + Whisper）。`index` 只索引标题、描述、互动数据和链接。skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。
 
 同时安装 `douyin-favorites-to-knowledge` 时，两者可复用同一浏览器 profile 和 ASR key，但状态、输出和调度完全隔离：Creator Insight 默认写入 `./output/creator-insight/`，不读取收藏 metadata，也不加入 23:00 收藏任务。运行前执行 `python3 scripts/integration.py`；若共享 profile 已被占用，等待当前流程结束即可。`douyin-mcp` 是可选诊断工具，不是安装或运行依赖。
 

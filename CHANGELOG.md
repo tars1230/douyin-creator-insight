@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-01
+
 ### Added
 - Adaptive transcript selection: accounts with 30 or fewer videos use all-video transcription; larger accounts use bounded, deduplicated layers of likes, saves, and recent posts.
 - Selection metadata is included in JSON results and summarized in HTML and Markdown reports.
@@ -15,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Non-mutating integration probe, neutral browser profile for standalone installs, shared-profile busy detection, and isolated Creator Insight output.
 
 ### Fixed
+- Skill runtime now auto-loads ASR/browser profile config from standard local env files, so Hermes launcher env gaps no longer collapse cloud ASR into `not_configured`.
 - Profile metadata extraction now prefers exact `sec_uid` matches over sec_uid-less wrapper objects.
 - Profile API author metadata now wins over per-post author fields when merging declared counts and account stats.
 - Timed-out or error-shaped transcript payloads are marked failed and excluded from report text.
