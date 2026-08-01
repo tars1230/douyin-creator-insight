@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-08-01
+## [1.2.1] - 2026-08-01
 
 ### Added
 - Adaptive transcript selection: accounts with 30 or fewer videos use all-video transcription; larger accounts use bounded, deduplicated layers of likes, saves, and recent posts.
@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `douyin-knowledge-base-pipeline` and `douyin-mcp` are optional integrations, not installation or runtime dependencies.
 - Cloud ASR first attempts DashScope URL recognition, then an optional temporary-audio cloud upload for large media; temporary media is always cleaned.
+- Reissued the final runtime-env hardening package as `v1.2.1` because ClawHub had already accepted an earlier `1.2.0` package and does not allow overwriting an existing version.
 
 ## [1.1.0] - 2026-07-30
 
