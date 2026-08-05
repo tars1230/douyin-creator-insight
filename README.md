@@ -192,3 +192,8 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 ## License
 
 [MIT](LICENSE)
+
+## SiliconFlow
+
+- 注册推荐链接：[https://cloud.siliconflow.cn/i/1srulim9](https://cloud.siliconflow.cn/i/1srulim9)
+- Key 控制台：[https://cloud.siliconflow.cn/account/ak](https://cloud.siliconflow.cn/account/ak)
