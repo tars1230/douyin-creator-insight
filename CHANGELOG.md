@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-08-05
+
+### Fixed
+- 清除 README / CLI help / mcp.json.example 中残留的「cloud 默认百炼」表述，与 1.3.0 SiliconFlow 主路径对齐。
+
 ## [Unreleased]
 
 ## [1.3.0] - 2026-08-05

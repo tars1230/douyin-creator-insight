@@ -139,7 +139,7 @@ python3 scripts/run_pipeline.py \
 | `--browser-adapter` | 昵称/抖音号搜索 adapter | 可选 |
 | `--max-videos` | 请求的视频上限 | 1000 |
 | `--transcript-count` | 请求的转写候选数；指定时覆盖自动分档 | 按账号规模自动选择 |
-| `--transcript-mode` | `cloud` 默认百炼 URL ASR + 云端 fallback；`local` Whisper；`index` 只做信息索引 | setup 选择，未配置时为 `cloud` |
+| `--transcript-mode` | `cloud` 默认 SiliconFlow 上传 ASR（抖音 CDN）+ 可选百炼公网直链 + local fallback；`local` Whisper；`index` 只做信息索引 | setup 选择，未配置时为 `cloud` |
 | `--no-local-fallback` | 云端 ASR 全部失败时不回退本地 Whisper | 关闭 |
 | `--max-duration` | 选择阶段的时长上限，分钟 | 5 |
 | `--output-dir` | Creator Insight 专用报告目录 | `./output/creator-insight` |
@@ -163,7 +163,7 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 
 ## 数据源与成本
 
-浏览器模式不需要 Apify key，边界是用户已授权浏览器可访问的公开主页。默认 cloud ASR 使用百炼 `qwen3-asr-flash`；价格、地域和免费额度会变化，实际扣费以用户百炼控制台账单为准。默认 actor 和 fallback 见 [references/apify-douyin-actors.md](references/apify-douyin-actors.md)。Actor 的可用性、输入 schema、价格和账户额度会变化；运行前应在对应 Apify Actor 页面核验，并先用小样本测试。仓库不承诺固定耗时、费用或免费额度。
+浏览器模式不需要 Apify key，边界是用户已授权浏览器可访问的公开主页。默认 cloud ASR：抖音 CDN 走 SiliconFlow `SenseVoiceSmall`；百炼 `qwen3-asr-flash` 仅公网直链媒体；价格、地域和免费额度会变化，实际扣费以所用平台（SiliconFlow / 百炼）控制台账单为准。默认 actor 和 fallback 见 [references/apify-douyin-actors.md](references/apify-douyin-actors.md)。Actor 的可用性、输入 schema、价格和账户额度会变化；运行前应在对应 Apify Actor 页面核验，并先用小样本测试。仓库不承诺固定耗时、费用或免费额度。
 
 ## 输出与示例
 
@@ -179,7 +179,7 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 
 - 上游字段或 Actor 行为变化可能导致质量门阻断。
 - 昵称搜索可能触发验证码，也可能产生同名候选；浏览器模式不会搜索或自动选择，需改贴主页或分享链接。
-- 无旁白、纯音乐、未配置云端 Key 或上游转写失败的视频可能没有 transcript。未配置 `DASHSCOPE_API_KEY` 时真实运行会安全停止并提示官方申请入口，不会自动下载视频。
+- 无旁白、纯音乐、未配置云端 Key 或上游转写失败的视频可能没有 transcript。未配置 `SILICONFLOW_API_KEY` 且未配置 `DASHSCOPE_API_KEY` 时真实运行会安全停止并提示官方申请入口，不会自动下载视频。
 - 未指定 `--transcript-count` 时：30 条及以下全量转写；31-100 条按点赞前 50；101-300 条选 60 条；301-800 条选 80 条；更大账号最多选 100 条。大账号样本按点赞、收藏与近期作品分层去重，避免只偏向历史爆款。
 - 浏览器模式会记录主页声明作品数、实际采集数和分页状态。达到请求上限而尚有下一页时，结果为 `partial`，不能作为全量结论。
 - 收藏 skill 是可选共享底座，不是前置依赖；同时安装时先运行 `scripts/integration.py` 探测 profile 占用和输出布局。浏览器模式不会读取或导出 cookie。
