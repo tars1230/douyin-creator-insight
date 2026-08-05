@@ -1,6 +1,6 @@
 ---
 name: douyin-creator-insight
-version: 1.3.3
+version: 1.3.4
 description: 分析公开抖音创作者的视频主题、互动结构和代表内容，并输出 HTML、Markdown、JSON 报告。适用于研究某个抖音博主、拆解选题和内容结构；不用于收藏夹同步、私密账号或绕过平台访问控制。
 ---
 
@@ -142,3 +142,9 @@ fixture E2E 通过只证明本地编排契约正确，不证明第三方 Actor �
 - `references/report-rubric.md`：报告质量
 - `references/failure-playbook.md`：失败恢复
 - `SECURITY.md`：凭据与漏洞报告
+
+### ASR 媒体与码率（1.3.4+）
+- 优先 `audio_url`，失败回退 `video_url`。
+- `DOUYIN_ASR_AUDIO_BITRATE`（默认 64k）、`DOUYIN_ASR_SAMPLE_RATE`（默认 16000）。
+- 抖音 `music.play_url` 仅在原创音时采用，商业 BGM 不用。
+- 推荐注册：https://cloud.siliconflow.cn/i/1srulim9
