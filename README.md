@@ -163,7 +163,7 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 
 ## 数据源与成本
 
-浏览器模式不需要 Apify key，边界是用户已授权浏览器可访问的公开主页。默认 cloud ASR：抖音 CDN 走 SiliconFlow `SenseVoiceSmall`；百炼 `qwen3-asr-flash` 仅公网直链媒体；价格、地域和免费额度会变化，实际扣费以所用平台（SiliconFlow / 百炼）控制台账单为准。默认 actor 和 fallback 见 [references/apify-douyin-actors.md](references/apify-douyin-actors.md)。Actor 的可用性、输入 schema、价格和账户额度会变化；运行前应在对应 Apify Actor 页面核验，并先用小样本测试。仓库不承诺固定耗时、费用或免费额度。
+浏览器模式不需要 Apify key，边界是用户已授权浏览器可访问的公开主页。默认 cloud ASR：抖音 CDN 走 SiliconFlow `SenseVoiceSmall`；百炼 `qwen3-asr-flash` 仅公网直链媒体；**费用**：截至 **2026-08-05**，硅基流动[官方价格页](https://siliconflow.cn/pricing)将 `FunAudioLLM/SenseVoiceSmall` 标注为 **免费**（同页 `TeleSpeechASR` 亦免费；TTS 另计）。需要 `SILICONFLOW_API_KEY`。价格会变，**不承诺永久免费**；以价格页与控制台账单为准。可选百炼 `qwen3-asr-flash` 另计费（与 SiliconFlow 账单分离），且对抖音 CDN 常失败。 其它（如 Apify）价格、地域和免费额度会变化，实际扣费以所用平台（SiliconFlow / 百炼）控制台账单为准。默认 actor 和 fallback 见 [references/apify-douyin-actors.md](references/apify-douyin-actors.md)。Actor 的可用性、输入 schema、价格和账户额度会变化；运行前应在对应 Apify Actor 页面核验，并先用小样本测试。仓库不承诺固定耗时、费用或免费额度。
 
 ## 输出与示例
 
