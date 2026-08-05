@@ -1,5 +1,6 @@
 ---
 name: douyin-creator-insight
+version: 1.3.0
 description: 分析公开抖音创作者的视频主题、互动结构和代表内容，并输出 HTML、Markdown、JSON 报告。适用于研究某个抖音博主、拆解选题和内容结构；不用于收藏夹同步、私密账号或绕过平台访问控制。
 ---
 
@@ -13,7 +14,16 @@ description: 分析公开抖音创作者的视频主题、互动结构和代表�
 
 `douyin-creator-insight` 可独立安装和运行，`douyin-favorites-to-knowledge`（旧名/旧目录可能是 `douyin-knowledge-base-pipeline`）不是前置依赖。若两者都存在，本 skill 只复用已登录的 persistent browser profile 和 ASR 环境变量，绝不读取收藏记录、修改增量 metadata，或加入收藏 skill 的 23:00 任务。
 
-首次运行先执行 `python3 scripts/setup.py`。它只写非敏感偏好：`cloud`（百炼，推荐）/ `local`（Whisper）/ `index`（只索引），以及可选 profile/output 位置；不保存 API key、cookie 或 token。若检测到已安装 `douyin-favorites-to-knowledge`，优先复用其已登录浏览器 profile 和转录偏好，但状态、账本、输出和 23:00 任务仍完全隔离。若选择 `cloud` 且未检测到 `DASHSCOPE_API_KEY`，setup 和真实运行都必须提示阿里云百炼官方 API Key 申请说明 `https://help.aliyun.com/zh/model-studio/get-api-key`，让用户把 Key 放到本机安全环境变量/Secret Manager；在 Key 缺失时不得自动下载视频或静默切本地 Whisper。配置好 `DASHSCOPE_API_KEY` 后，默认把媒体 URL 交给百炼，不下载视频；若百炼拒绝大视频且配置了 `SILICONFLOW_API_KEY`，可临时下载并上传音频到另一个云端 ASR，完成即清理。只有云端已配置但真实调用失败时才回退 `local`；`index` 永不调用 ASR。skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。运行前先执行 `python3 scripts/integration.py`：它只读探测共享 profile、输出布局与占用状态；若 profile 正在被收藏任务使用，必须等待，不能并发打开 Chromium persistent profile。报告写入独立的 `<output-root>/creator-insight/`，不要求配置飞书或 Obsidian。
+首次运行先执行 `python3 scripts/setup.py`。它只写非敏感偏好：`cloud`（云端 ASR）/ `local`（Whisper）/ `index`（只索引），以及可选 profile/output 位置；不保存 API key、cookie 或 token。若检测到已安装 `douyin-favorites-to-knowledge`，优先复用其已登录浏览器 profile 和转录偏好，但状态、账本、输出和 23:00 任务仍完全隔离。
+
+**云端 ASR 真相（抖音）**：抖音 CDN（`*.douyinvod.com` 等）带防盗链，**阿里云百炼 URL-ASR 服务端拉不到媒体**，会稳定失败——不是用户 Key 配错。公开 skill 的默认可用路径是：
+
+1. **推荐 `SILICONFLOW_API_KEY`**：本机用浏览器式 `Referer: https://www.douyin.com/` 临时下载 → 抽音频 → 上传 SiliconFlow `FunAudioLLM/SenseVoiceSmall` → 立即清理临时文件。
+2. **可选 `DASHSCOPE_API_KEY`**：仅当媒体 URL 是第三方可公网直链时走百炼 URL-ASR；对抖音 CDN **默认跳过**（可用 `DOUYIN_FORCE_DASHSCOPE_URL=1` 强行试）。
+3. 至少配置上述之一才允许 `cloud` 真跑；**两者都缺**时停止，不下载、不静默切 Whisper。
+4. 云端都失败且用户允许 local fallback 时才进 Whisper；`index` 永不 ASR。
+
+SiliconFlow 控制台：`https://cloud.siliconflow.cn/account/ak`。百炼说明（可选）：`https://help.aliyun.com/zh/model-studio/get-api-key`。Key 放本机环境变量/Secret Manager，不要发聊天或进仓库。skill 自动读 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local`。运行前 `python3 scripts/integration.py`；共享 profile 被占用必须等待。报告写入独立 `<output-root>/creator-insight/`。
 
 Actor 的价格、配额、可用性和 schema 会变化。运行前查看当前 Actor 页面；任何费用或耗时只能作为本次运行的实测结果陈述，不能沿用固定承诺。
 
@@ -38,7 +48,7 @@ Actor 的价格、配额、可用性和 schema 会变化。运行前查看当前
 3. 昵称或抖音号不可自动选人；搜索触发验证码、无候选或多个候选时停止并请求主页/分享链接。
 4. 用 `scripts/parser.py` 标准化字段，再执行 `quality_gate.py`。门禁失败时停止，不生成伪完整报告。
 5. `index` 模式跳过转写，只保留全量作品信息；其他模式用 `selector.py` 选择候选：30 条及以下全量转写；31-100 条按点赞前 50；更大账号按点赞、收藏和近期作品分层去重抽样（上限 100 条）。
-6. `cloud`（默认）先把浏览器接口提供的媒体 URL 发送给百炼兼容 ASR；大文件可走临时音频上传的云端 fallback，随后清理。只有云端都失败才进入 `local` 的 Whisper。`douyin-mcp` 不是依赖；它本身也是“下载临时视频 -> 提取音频 -> 上传云端”，因此不作为本 skill 的正常路径。再用 `categorizer.py` 分类、`report_builder.py` 输出真实 provider 状态与错误。
+6. `cloud`（默认）对抖音 CDN 媒体：**优先 SiliconFlow 上传 ASR**（Referer 下载 + 抽音频 + 上传 + 清理）；**不把抖音 CDN URL 默认丢给百炼**。非抖音可公网媒体才先试百炼 URL-ASR。云端都失败才进入 `local` Whisper。`douyin-mcp` 不是依赖。再用 `categorizer.py` 分类、`report_builder.py` 输出真实 provider 状态与错误。
 
 ## Tool 调用契约
 
@@ -98,7 +108,8 @@ python3 scripts/run_pipeline.py \
 | 昵称搜索验证码/同名 | 不绕过验证码，不自动选人；要求主页或分享链接 |
 | Profile actor 失败 | 核对 schema 后使用记录在 reference 中的 fallback |
 | 视频不足或字段异常 | 质量门阻断，保留原始响应供排查 |
-| 未配置 `DASHSCOPE_API_KEY` | 停止真实转写，提示百炼 API Key 官方申请入口；不自动下载视频或切本地 Whisper |
+| 未配置 `SILICONFLOW_API_KEY` 且未配置 `DASHSCOPE_API_KEY` | 停止真实转写；提示 SiliconFlow（抖音推荐）与可选百炼入口；不自动下载或切 Whisper |
+| 仅有 `DASHSCOPE_API_KEY`、无 SiliconFlow | 允许启动但告警：抖音 CDN 转写大概率失败 |
 | Cloud ASR 失败 | 仅在云端已配置但真实调用失败时记录错误，再回退本地 Whisper；`--no-local-fallback` 时只报告失败 |
 | 本地 Whisper 失败 | 清理临时媒体并标记 `failed` 或 `empty_transcript` |
 | 配额不足 | 停止真实调用，建议用户缩小样本或稍后重试 |

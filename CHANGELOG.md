@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-05
+
+### Fixed（面向公开用户的关键纠错）
+
+- **抖音 CDN 云端转写默认路径错误**：此前文档与 setup 将「阿里云百炼 URL-ASR」宣传为推荐主路径。实测百炼服务端无法拉取 `*.douyinvod.com`，会稳定失败；公开用户按文档只配 `DASHSCOPE_API_KEY` 时几乎转不出文案。
+- **硬闸只认百炼 Key**：`run_pipeline` 在已配置 `SILICONFLOW_API_KEY` 时仍因缺少 `DASHSCOPE_API_KEY` 直接退出。
+- **媒体下载 403**：云端上传 / 本地 Whisper 下载缺少 `Referer: https://www.douyin.com/`，导致 SiliconFlow 回退也失败。
+
+### Changed
+
+- 抖音保护媒体：**优先 SiliconFlow 上传 ASR**；默认跳过百炼 URL（可用 `DOUYIN_FORCE_DASHSCOPE_URL=1` 强行试）。
+- `cloud` 就绪条件：`SILICONFLOW_API_KEY` **或** `DASHSCOPE_API_KEY`。
+- setup / README / SKILL：明确推荐 SiliconFlow 为抖音路径；百炼降为可选公网 URL 路径。
+- `cloud_asr_configured` 同时探测两种 Key。
+
+### Notes
+
+- 两家不是同一模型：百炼默认 `qwen3-asr-flash`；SiliconFlow 默认 `FunAudioLLM/SenseVoiceSmall`；账单分离。
+
+
 ## [1.2.3] - 2026-08-01
 
 ### Removed

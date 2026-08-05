@@ -28,11 +28,23 @@
 
 本 skill 可以独立安装。第一次运行先执行 `python3 scripts/setup.py`，明确选择：
 
-- `cloud`：百炼云端 ASR，默认推荐。只把公开媒体 URL 交给百炼，不下载视频。
+- `cloud`：云端 ASR（默认）。**抖音场景推荐配置 `SILICONFLOW_API_KEY`**（本机带 Referer 临时下载 → 上传 SenseVoice → 清理）。
 - `local`：本地 Whisper。只有用户明确选择时才临时下载视频，结束后清理。
 - `index`：只索引标题、描述、互动数据和链接，不调用 ASR。
 
-如果选择 `cloud` 但没有检测到 `DASHSCOPE_API_KEY`，setup 和真实运行都会提示阿里云官方申请说明：[如何获取 API Key](https://help.aliyun.com/zh/model-studio/get-api-key)。创建 Key 后，把它配置到本机环境变量或宿主 Secret Manager；不要把 Key 发到聊天、写入配置或提交到仓库。Key 缺失时，本项目不会自动下载视频，也不会偷偷切到本地 Whisper。百炼拒绝大视频时，若配置了可选 `SILICONFLOW_API_KEY`，会临时下载并上传音频到云端 ASR，完成即清理；只有云端已配置但真实调用失败时才进入 `local` fallback。
+### 云端 ASR 重要说明（请先读）
+
+抖音播放地址在 `*.douyinvod.com` 等 CDN 上，带防盗链。**阿里云百炼的 URL-ASR 无法从服务端下载这些地址**，会稳定返回 download 失败——这不是 API Key 坏了，也不是“测通了百炼就等于抖音能转写”。
+
+| Key | 是否抖音刚需 | 作用 |
+|---|---|---|
+| **`SILICONFLOW_API_KEY`** | **是（推荐）** | 下载（`Referer: https://www.douyin.com/`）+ 上传 `FunAudioLLM/SenseVoiceSmall` |
+| `DASHSCOPE_API_KEY` | 否（可选） | 仅对**可公网直链**媒体做 URL-ASR；对抖音 CDN 默认跳过 |
+
+- SiliconFlow 控制台：[创建 API Key](https://cloud.siliconflow.cn/account/ak)
+- 百炼说明（可选）：[如何获取 API Key](https://help.aliyun.com/zh/model-studio/get-api-key)
+
+两者都缺时，`cloud` 真跑会安全停止，不下载、不静默切 Whisper。只有 `DASHSCOPE`、没有 SiliconFlow 时会告警。Key 放环境变量/Secret Manager，不要发聊天或进仓库。
 
 skill 会自动读取当前 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local` 中的相关配置，Hermes 没透传环境也能继续走 cloud 默认。
 
@@ -50,7 +62,7 @@ python3 scripts/run_pipeline.py \
   --browser --max-videos 50 --output-dir ./output
 ```
 
-该模式只读取公开作品列表，逐页验证每条作品作者的 `sec_uid`，不复制 cookie、不输出 profile、不绕过验证码。默认先用百炼 URL ASR；大文件可切到云端音频上传并自动清理临时文件，全部云端失败才回退本地 Whisper。
+该模式只读取公开作品列表，逐页验证每条作品作者的 `sec_uid`，不复制 cookie、不输出 profile、不绕过验证码。抖音媒体默认走 SiliconFlow 上传 ASR（Referer 下载后清理）；非抖音公网媒体可走百炼 URL ASR；全部云端失败才回退本地 Whisper。
 
 非交互环境可以显式配置：
 

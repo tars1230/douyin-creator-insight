@@ -16,6 +16,8 @@ from runtime_env import ensure_runtime_env
 
 BAILIAN_API_KEY_GUIDE_URL = "https://help.aliyun.com/zh/model-studio/get-api-key"
 BAILIAN_CONSOLE_URL = "https://bailian.console.aliyun.com/cn-beijing/?tab=api"
+SILICONFLOW_CONSOLE_URL = "https://cloud.siliconflow.cn/account/ak"
+SILICONFLOW_DOCS_URL = "https://docs.siliconflow.cn/cn/api-reference/audio/create-audio-transcriptions"
 CONFIG_ENV = "DOUYIN_CREATOR_CONFIG"
 MODES = frozenset({"cloud", "local", "index"})
 SECRET_LIKE_KEYS = (
@@ -131,7 +133,9 @@ def detect_existing_setup() -> dict[str, Any]:
             if configured_profile
             else ("favorites_skill" if profile else "neutral_creator_profile")
         ),
-        "cloud_asr_configured": bool(os.environ.get("DASHSCOPE_API_KEY")),
+        "cloud_asr_configured": bool(os.environ.get("SILICONFLOW_API_KEY") or os.environ.get("DASHSCOPE_API_KEY")),
+        "siliconflow_configured": bool(os.environ.get("SILICONFLOW_API_KEY")),
+        "dashscope_configured": bool(os.environ.get("DASHSCOPE_API_KEY")),
         "config_path": creator_config,
         "browser_profile": profile,
     }
@@ -196,7 +200,7 @@ def save_setup_config(
 
 def mode_label(mode: str) -> str:
     return {
-        "cloud": "云端百炼 ASR（推荐，不下载视频）",
+        "cloud": "云端 ASR（抖音推荐 SiliconFlow 上传；百炼 URL 仅适合可公网直链媒体）",
         "local": "本地 Whisper（会临时下载并在结束后清理视频）",
         "index": "只做信息索引（不转录、不下载视频）",
     }[mode]
