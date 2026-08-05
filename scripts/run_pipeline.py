@@ -370,7 +370,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--transcript-mode",
         choices=("cloud", "local", "index"),
         default=None,
-        help="转写模式：cloud 默认百炼 URL ASR；local 使用临时文件 Whisper；index 只做信息索引",
+        help="转写模式：cloud 默认 SiliconFlow 上传 ASR（抖音 CDN）；百炼 URL 仅公网直链；local 使用临时文件 Whisper；index 只做信息索引",
     )
     parser.add_argument(
         "--no-local-fallback",
