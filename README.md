@@ -198,8 +198,8 @@ CI 在 Python 3.10 和 3.12 上执行同一套测试。测试覆盖：
 - 注册推荐链接：[https://cloud.siliconflow.cn/i/1srulim9](https://cloud.siliconflow.cn/i/1srulim9)
 - Key 控制台：[https://cloud.siliconflow.cn/account/ak](https://cloud.siliconflow.cn/account/ak)
 
-### ASR 媒体与码率（1.3.4+）
-- 优先 `audio_url`，失败回退 `video_url`。
+### ASR 媒体与码率（1.3.5+）
+- **单一路径**：下载 `video_url` → `ffmpeg -vn` 抽音 → 上传 SenseVoice。
+- **不再优先** `audio_url` / `music.play_url`（常为商业 BGM）。
 - `DOUYIN_ASR_AUDIO_BITRATE`（默认 64k）、`DOUYIN_ASR_SAMPLE_RATE`（默认 16000）。
-- 抖音 `music.play_url` 仅在原创音时采用，商业 BGM 不用。
 - 推荐注册：https://cloud.siliconflow.cn/i/1srulim9

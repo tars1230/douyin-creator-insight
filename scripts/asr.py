@@ -140,7 +140,8 @@ def transcribe_video_cloud(video: Video) -> Transcript:
     2. Other media → DashScope URL first, then SiliconFlow upload.
     """
     ensure_runtime_env()
-    media_url = video.audio_url or video.video_url or ""
+    # Stable path: video stream only (no audio_url / BGM shortcut).
+    media_url = (video.video_url or "").strip()
     errors: list[str] = []
 
     if _is_douyin_protected_media(media_url):
@@ -190,7 +191,7 @@ def transcribe_video_cloud(video: Video) -> Transcript:
 
 def _transcribe_dashscope_url(video: Video) -> Transcript:
     """Use DashScope-compatible ASR with a public URL and no local media."""
-    media_url = video.audio_url or video.video_url
+    media_url = (video.video_url or "").strip()
     if not media_url:
         return _failed(video, "dashscope-cloud", "no public media URL available for cloud ASR")
     api_key = os.environ.get("DASHSCOPE_API_KEY")
@@ -250,8 +251,8 @@ def _transcribe_siliconflow_upload(video: Video) -> Transcript:
     Downloaded source/audio exist only under ``TemporaryDirectory``. This is
     still cloud ASR: local Whisper is neither loaded nor invoked.
 
-    Tries audio_url first, then video_url. Bitrate/sample-rate via
-    DOUYIN_ASR_AUDIO_BITRATE / DOUYIN_ASR_SAMPLE_RATE.
+    Stable path: download ``video_url`` → ffmpeg extract → upload.
+    Bitrate/sample-rate via DOUYIN_ASR_AUDIO_BITRATE / DOUYIN_ASR_SAMPLE_RATE.
     """
     api_key = os.environ.get("SILICONFLOW_API_KEY")
     if not api_key:
@@ -375,10 +376,10 @@ def _audio_encode_settings() -> tuple[str, str]:
 
 
 def _media_candidates(video: "Video") -> list[tuple[str, str]]:
-    """Ordered media URLs: audio first, then video."""
+    """Ordered media URLs: video stream only (no audio_url / BGM branch)."""
     out: list[tuple[str, str]] = []
     seen: set[str] = set()
-    for kind, url in (("audio", video.audio_url), ("video", video.video_url)):
+    for kind, url in (("video", video.video_url),):
         u = (url or "").strip()
         if u and u not in seen:
             seen.add(u)
