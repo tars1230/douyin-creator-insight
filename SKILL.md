@@ -1,6 +1,6 @@
 ---
 name: douyin-creator-insight
-version: 1.3.2
+version: 1.3.3
 description: 分析公开抖音创作者的视频主题、互动结构和代表内容，并输出 HTML、Markdown、JSON 报告。适用于研究某个抖音博主、拆解选题和内容结构；不用于收藏夹同步、私密账号或绕过平台访问控制。
 ---
 
@@ -26,6 +26,10 @@ description: 分析公开抖音创作者的视频主题、互动结构和代表�
 SiliconFlow 控制台：`https://cloud.siliconflow.cn/account/ak`。百炼说明（可选）：`https://help.aliyun.com/zh/model-studio/get-api-key`。Key 放本机环境变量/Secret Manager，不要发聊天或进仓库。skill 自动读 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local`。运行前 `python3 scripts/integration.py`；共享 profile 被占用必须等待。报告写入独立 `<output-root>/creator-insight/`。
 
 > **ASR 费用（默认 SenseVoiceSmall）**：截至 **2026-08-05**，硅基流动[官方价格页](https://siliconflow.cn/pricing)将 `FunAudioLLM/SenseVoiceSmall` 标注为 **免费**（同页 `TeleSpeechASR` 亦免费；TTS 另计）。需要 `SILICONFLOW_API_KEY`。价格会变，**不承诺永久免费**；以价格页与控制台账单为准。可选百炼 `qwen3-asr-flash` 另计费（与 SiliconFlow 账单分离），且对抖音 CDN 常失败。
+
+
+- **SiliconFlow 注册推荐链接**：[https://cloud.siliconflow.cn/i/1srulim9](https://cloud.siliconflow.cn/i/1srulim9)
+- Key 控制台：[https://cloud.siliconflow.cn/account/ak](https://cloud.siliconflow.cn/account/ak)
 
 
 Actor 的价格、配额、可用性和 schema 会变化。运行前查看当前 Actor 页面；任何费用或耗时只能作为本次运行的实测结果陈述，不能沿用固定承诺。
