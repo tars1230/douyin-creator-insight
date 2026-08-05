@@ -72,6 +72,16 @@ def normalize_browser_item(item: dict[str, Any]) -> dict[str, Any] | None:
         ),
         "audioUrl": _first_url(
             (video.get("audio") or {}).get("url_list")
+            or (
+                ((item.get("music") or {}).get("play_url") or {}).get("url_list")
+                if (
+                    (item.get("music") or {}).get("is_original_sound")
+                    or (item.get("music") or {}).get("is_original")
+                    or (item.get("music") or {}).get("owner_handle")
+                    or (item.get("music") or {}).get("owner_nickname")
+                )
+                else []
+            )
             or []
         ),
         "mediaSource": "douyin_browser_detail_api",

@@ -60,6 +60,7 @@ def _normalize_video_item(item: Dict[str, Any], actor_name: str) -> Optional[Vid
     audio_url = _extract_field(item, [
         "audioUrl", "audio_url", "audio.url", "audioMeta.url",
         "video.audio.url_list.0", "video.audio.url",
+        "music.play_url.url_list.0", "music.play_url.uri",
     ])
     media_source = _extract_field(item, ["mediaSource", "media_source"])
 

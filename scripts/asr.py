@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import tempfile
 import uuid
@@ -248,74 +249,94 @@ def _transcribe_siliconflow_upload(video: Video) -> Transcript:
 
     Downloaded source/audio exist only under ``TemporaryDirectory``. This is
     still cloud ASR: local Whisper is neither loaded nor invoked.
+
+    Tries audio_url first, then video_url. Bitrate/sample-rate via
+    DOUYIN_ASR_AUDIO_BITRATE / DOUYIN_ASR_SAMPLE_RATE.
     """
-    media_url = video.audio_url or video.video_url
     api_key = os.environ.get("SILICONFLOW_API_KEY")
     if not api_key:
         return _failed(video, "siliconflow-cloud", "SILICONFLOW_API_KEY is not configured")
-    if not media_url:
+    candidates = _media_candidates(video)
+    if not candidates:
         return _failed(video, "siliconflow-cloud", "no public media URL available for cloud upload ASR")
     endpoint = os.environ.get("SILICONFLOW_ASR_URL", "https://api.siliconflow.cn/v1/audio/transcriptions")
     model = os.environ.get("SILICONFLOW_ASR_MODEL", "FunAudioLLM/SenseVoiceSmall")
+    errors: list[str] = []
     try:
         with tempfile.TemporaryDirectory(prefix="douyin-creator-cloud-") as temporary:
             temp_dir = Path(temporary)
-            source_path = temp_dir / f"source.{_media_format(media_url)}"
-            audio_path = temp_dir / "audio.mp3"
-            _download_media(media_url, source_path)
-            _extract_cloud_audio(source_path, audio_path)
-            response_payload = _post_multipart(
-                endpoint,
-                api_key,
-                audio_path,
-                {"model": model, "language": "zh"},
-            )
+            for kind, media_url in candidates:
+                try:
+                    source_path = temp_dir / f"source-{kind}.{_media_format(media_url)}"
+                    audio_path = temp_dir / f"audio-{kind}.mp3"
+                    _download_media(media_url, source_path)
+                    _extract_cloud_audio(source_path, audio_path)
+                    response_payload = _post_multipart(
+                        endpoint,
+                        api_key,
+                        audio_path,
+                        {"model": model, "language": "zh"},
+                    )
+                    text = _extract_cloud_text(response_payload)
+                    if len(text.strip()) >= 2:
+                        return Transcript(
+                            aweme_id=video.aweme_id,
+                            status=TranscriptStatus.SUCCESS,
+                            text=text.strip(),
+                            duration_seconds=video.duration_seconds,
+                            actor_used=f"siliconflow-cloud:{kind}",
+                        )
+                    errors.append(f"{kind}: empty transcript")
+                except Exception as exc:
+                    errors.append(f"{kind}: {exc}")
     except Exception as exc:
         return _failed(video, "siliconflow-cloud", f"cloud upload ASR failed: {exc}")
-    text = _extract_cloud_text(response_payload)
-    if len(text.strip()) < 2:
-        return _failed(video, "siliconflow-cloud", "cloud upload ASR returned an empty transcript")
-    return Transcript(
-        aweme_id=video.aweme_id,
-        status=TranscriptStatus.SUCCESS,
-        text=text.strip(),
-        duration_seconds=video.duration_seconds,
-        actor_used="siliconflow-cloud",
-    )
+    detail = "; ".join(errors) if errors else "all media candidates failed"
+    return _failed(video, "siliconflow-cloud", f"cloud upload ASR failed: {detail}")
 
 
 def transcribe_video_local(video: Video) -> Transcript:
     """Download only for local Whisper and always remove temporary media."""
     ensure_runtime_env()
-    media_url = video.audio_url or video.video_url
-    if not media_url:
+    candidates = _media_candidates(video)
+    if not candidates:
         return _failed(video, "local-whisper", "no public media URL available for local fallback")
 
+    errors: list[str] = []
     try:
         with tempfile.TemporaryDirectory(prefix="douyin-creator-asr-") as temporary:
             temp_dir = Path(temporary)
-            source_path = temp_dir / f"source.{_media_format(media_url)}"
-            audio_path = temp_dir / "audio.wav"
-            _download_media(media_url, source_path)
-            _extract_audio(source_path, audio_path)
-            text, segments = _whisper_transcribe(audio_path)
+            for kind, media_url in candidates:
+                try:
+                    source_path = temp_dir / f"source-{kind}.{_media_format(media_url)}"
+                    audio_path = temp_dir / f"audio-{kind}.wav"
+                    _download_media(media_url, source_path)
+                    _extract_audio(source_path, audio_path)
+                    text, segments = _whisper_transcribe(audio_path)
+                    if len(text.strip()) >= 2:
+                        return Transcript(
+                            aweme_id=video.aweme_id,
+                            status=TranscriptStatus.SUCCESS,
+                            text=text.strip(),
+                            duration_seconds=video.duration_seconds,
+                            segments=segments,
+                            actor_used=f"local-whisper:{kind}",
+                        )
+                    errors.append(f"{kind}: empty")
+                except Exception as exc:
+                    errors.append(f"{kind}: {exc}")
     except Exception as exc:
         return _failed(video, "local-whisper", f"local Whisper fallback failed: {exc}")
 
-    if len(text.strip()) < 2:
-        return Transcript(
-            aweme_id=video.aweme_id,
-            status=TranscriptStatus.EMPTY,
-            actor_used="local-whisper",
-            err_msg="local Whisper returned empty transcript",
-        )
+    detail = "; ".join(errors) if errors else "no candidates"
+    # Distinguish hard failures (download/ffmpeg/model) from empty speech.
+    if errors and all("empty" not in e for e in errors):
+        return _failed(video, "local-whisper", f"local Whisper fallback failed: {detail}")
     return Transcript(
         aweme_id=video.aweme_id,
-        status=TranscriptStatus.SUCCESS,
-        text=text.strip(),
-        duration_seconds=video.duration_seconds,
-        segments=segments,
+        status=TranscriptStatus.EMPTY,
         actor_used="local-whisper",
+        err_msg="local Whisper returned empty transcript: " + detail,
     )
 
 
@@ -342,6 +363,29 @@ def _is_missing_configuration(transcript: Transcript) -> bool:
     )
 
 
+def _audio_encode_settings() -> tuple[str, str]:
+    """Return (sample_rate, bitrate) for ffmpeg cloud extract."""
+    rate = (os.environ.get("DOUYIN_ASR_SAMPLE_RATE") or "16000").strip() or "16000"
+    if not re.fullmatch(r"\d{4,6}", rate):
+        rate = "16000"
+    br = (os.environ.get("DOUYIN_ASR_AUDIO_BITRATE") or "64k").strip() or "64k"
+    if not re.fullmatch(r"\d{2,4}k", br, flags=re.I):
+        br = "64k"
+    return rate, br.lower()
+
+
+def _media_candidates(video: "Video") -> list[tuple[str, str]]:
+    """Ordered media URLs: audio first, then video."""
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for kind, url in (("audio", video.audio_url), ("video", video.video_url)):
+        u = (url or "").strip()
+        if u and u not in seen:
+            seen.add(u)
+            out.append((kind, u))
+    return out
+
+
 def _download_media(url: str, destination: Path) -> None:
     # Douyin CDN (*.douyinvod.com) returns 403 without browser-like Referer/Origin.
     # DashScope URL-mode still fails server-side (Aliyun cannot fetch CDN); upload/local paths need this.
@@ -364,8 +408,9 @@ def _download_media(url: str, destination: Path) -> None:
 
 
 def _extract_audio(source: Path, audio: Path) -> None:
+    rate, _bitrate = _audio_encode_settings()
     completed = subprocess.run(
-        ["ffmpeg", "-nostdin", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", "16000", str(audio)],
+        ["ffmpeg", "-nostdin", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", rate, str(audio)],
         capture_output=True,
         text=True,
         timeout=180,
@@ -376,8 +421,9 @@ def _extract_audio(source: Path, audio: Path) -> None:
 
 
 def _extract_cloud_audio(source: Path, audio: Path) -> None:
+    rate, bitrate = _audio_encode_settings()
     completed = subprocess.run(
-        ["ffmpeg", "-nostdin", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", str(audio)],
+        ["ffmpeg", "-nostdin", "-y", "-i", str(source), "-vn", "-ac", "1", "-ar", rate, "-b:a", bitrate, str(audio)],
         capture_output=True,
         text=True,
         timeout=180,
