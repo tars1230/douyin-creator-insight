@@ -275,6 +275,7 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             env = dict(os.environ)
             env.pop("DASHSCOPE_API_KEY", None)
+            env.pop("SILICONFLOW_API_KEY", None)
             env["HOME"] = temp_dir
             env["HERMES_HOME"] = str(Path(temp_dir) / ".hermes")
             env["XDG_CONFIG_HOME"] = str(Path(temp_dir) / ".config")
@@ -297,8 +298,8 @@ class PipelineTests(unittest.TestCase):
                 env=env,
                 cwd=temp_dir,
             )
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("尚未配置 DASHSCOPE_API_KEY", result.stdout)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("SILICONFLOW_API_KEY", result.stdout)
             self.assertIn("--transcript-mode local / index", result.stdout)
 
     def test_fixture_e2e_generates_all_formats(self):
@@ -359,6 +360,59 @@ class PipelineTests(unittest.TestCase):
     def test_adapter_loader_rejects_invalid_spec(self):
         with self.assertRaises(ValueError):
             load_callable("missing_separator")
+
+
+
+    def test_douyin_cdn_prefers_siliconflow_and_skips_dashscope(self):
+        from asr import transcribe_video_cloud
+        from schemas import Video, TranscriptStatus
+        import asr as asr_mod
+
+        calls = []
+
+        def fake_sf(video):
+            calls.append("sf")
+            return Transcript(video.aweme_id, TranscriptStatus.SUCCESS, "ok", actor_used="siliconflow-cloud")
+
+        def fake_ds(video):
+            calls.append("ds")
+            return Transcript(video.aweme_id, TranscriptStatus.SUCCESS, "should-not", actor_used="dashscope-cloud")
+
+        original_sf = asr_mod._transcribe_siliconflow_upload
+        original_ds = asr_mod._transcribe_dashscope_url
+        asr_mod._transcribe_siliconflow_upload = fake_sf
+        asr_mod._transcribe_dashscope_url = fake_ds
+        old_sf = os.environ.get("SILICONFLOW_API_KEY")
+        old_ds = os.environ.get("DASHSCOPE_API_KEY")
+        old_force = os.environ.get("DOUYIN_FORCE_DASHSCOPE_URL")
+        try:
+            os.environ["SILICONFLOW_API_KEY"] = "x"
+            os.environ["DASHSCOPE_API_KEY"] = "y"
+            os.environ.pop("DOUYIN_FORCE_DASHSCOPE_URL", None)
+            video = Video(
+                aweme_id="1",
+                video_url="https://v3-web.douyinvod.com/foo/bar.mp4?x=1",
+                title="t",
+            )
+            result = transcribe_video_cloud(video)
+            self.assertEqual(result.status, TranscriptStatus.SUCCESS)
+            self.assertEqual(calls, ["sf"])
+            self.assertEqual(result.actor_used, "siliconflow-cloud")
+        finally:
+            asr_mod._transcribe_siliconflow_upload = original_sf
+            asr_mod._transcribe_dashscope_url = original_ds
+            if old_sf is None:
+                os.environ.pop("SILICONFLOW_API_KEY", None)
+            else:
+                os.environ["SILICONFLOW_API_KEY"] = old_sf
+            if old_ds is None:
+                os.environ.pop("DASHSCOPE_API_KEY", None)
+            else:
+                os.environ["DASHSCOPE_API_KEY"] = old_ds
+            if old_force is None:
+                os.environ.pop("DOUYIN_FORCE_DASHSCOPE_URL", None)
+            else:
+                os.environ["DOUYIN_FORCE_DASHSCOPE_URL"] = old_force
 
 
 if __name__ == "__main__":

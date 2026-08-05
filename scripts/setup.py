@@ -10,6 +10,8 @@ from setup_config import (
     BAILIAN_API_KEY_GUIDE_URL,
     BAILIAN_CONSOLE_URL,
     MODES,
+    SILICONFLOW_CONSOLE_URL,
+    SILICONFLOW_DOCS_URL,
     detect_existing_setup,
     mode_label,
     save_setup_config,
@@ -21,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--transcript-mode",
         choices=sorted(MODES),
-        help="cloud（百炼，默认推荐）/ local（Whisper）/ index（只索引）",
+        help="cloud（云端 ASR，默认）/ local（Whisper）/ index（只索引）",
     )
     parser.add_argument("--config", type=Path, help="可选的本地配置路径")
     parser.add_argument("--browser-profile", type=Path, help="可选：已授权抖音浏览器 profile")
@@ -30,13 +32,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_cloud_action() -> None:
-    print("☁️ 尚未检测到 DASHSCOPE_API_KEY。")
-    print(f"申请说明（阿里云官方）：{BAILIAN_API_KEY_GUIDE_URL}")
-    print(f"百炼控制台 API Key 页面：{BAILIAN_CONSOLE_URL}")
-    print("创建后请把 Key 配置到本机安全环境变量或 Secret Manager，不要发送到聊天中。")
-    print("macOS/Linux 示例：export DASHSCOPE_API_KEY='你的 Key'（不要把真实 Key 写进仓库）")
-    print("完成后重启 Hermes/WorkBuddy/Codex 等已启动的宿主进程，再运行 check 或 pipeline。")
+def _print_cloud_action(detected: dict | None = None) -> None:
+    detected = detected or {}
+    print("☁️ 云端 ASR 说明（抖音真实可用路径）：")
+    print("  1) 【推荐】SILICONFLOW_API_KEY — 本机带 Referer 下载后上传 SenseVoiceSmall")
+    print(f"     控制台创建 Key：{SILICONFLOW_CONSOLE_URL}")
+    print(f"     接口文档：{SILICONFLOW_DOCS_URL}")
+    print("     macOS/Linux：export SILICONFLOW_API_KEY='你的 Key'")
+    print("  2) 【可选】DASHSCOPE_API_KEY — 百炼 URL ASR，仅适合第三方可公网直链的媒体")
+    print("     抖音 CDN（*.douyinvod.com）侧阿里云拉不到，URL 模式会失败，不是 Key 坏了")
+    print(f"     申请说明：{BAILIAN_API_KEY_GUIDE_URL}")
+    print(f"     控制台：{BAILIAN_CONSOLE_URL}")
+    if detected.get("siliconflow_configured"):
+        print("✅ 已检测到 SILICONFLOW_API_KEY")
+    else:
+        print("❌ 未检测到 SILICONFLOW_API_KEY（抖音口播转写通常需要它）")
+    if detected.get("dashscope_configured"):
+        print("ℹ️ 已检测到 DASHSCOPE_API_KEY（非抖音公网媒体可用）")
+    print("不要把真实 Key 写进仓库或发到聊天。配置后重启已启动的宿主进程。")
 
 
 def _choose_mode(detected: dict) -> str:
@@ -50,8 +63,8 @@ def _choose_mode(detected: dict) -> str:
             reuse += f"；它当前偏好 {detected['favorites_transcript_mode']}"
         print(f"ℹ️ {reuse}。Creator Insight 的状态、输出和定时任务仍保持独立。")
     if not detected["cloud_asr_configured"]:
-        _print_cloud_action()
-    print("\n  1. 云端百炼 ASR（推荐）")
+        _print_cloud_action(detected)
+    print("\n  1. 云端 ASR（推荐；抖音用 SiliconFlow）")
     print("  2. 本地 Whisper（明确选择后才下载视频）")
     print("  3. 只做信息索引（不转录）")
     answer = input("请选择 [1]：").strip()
@@ -87,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
         "config_written": True,
         "config_path": str(config_path),
         "cloud_asr_configured": detected["cloud_asr_configured"],
+        "siliconflow_configured": detected.get("siliconflow_configured", False),
+        "dashscope_configured": detected.get("dashscope_configured", False),
         "favorites_skill_installed": detected["favorites_skill_installed"],
         "shared_profile_available": detected["shared_profile_available"],
         "profile_source": detected["profile_source"],
@@ -95,12 +110,22 @@ def main(argv: list[str] | None = None) -> int:
     if mode == "cloud" and not detected["cloud_asr_configured"]:
         result["status"] = "action_required"
         result["next_steps"] = [
-            "申请并配置 DASHSCOPE_API_KEY",
+            "申请并配置 SILICONFLOW_API_KEY（抖音推荐）",
+            SILICONFLOW_CONSOLE_URL,
+            "可选：DASHSCOPE_API_KEY（仅非抖音公网媒体 URL ASR）",
             BAILIAN_API_KEY_GUIDE_URL,
             "配置后重启宿主 Agent，再运行真实 pipeline",
         ]
         if not args.json:
-            _print_cloud_action()
+            _print_cloud_action(detected)
+    elif mode == "cloud" and not detected.get("siliconflow_configured"):
+        result["next_steps"] = [
+            "已检测到 DASHSCOPE_API_KEY，但抖音 CDN 通常仍需 SILICONFLOW_API_KEY",
+            SILICONFLOW_CONSOLE_URL,
+        ]
+        if not args.json:
+            print("⚠️ 仅有百炼 Key 时，抖音口播转写大概率失败；请补 SILICONFLOW_API_KEY。")
+            _print_cloud_action(detected)
     elif mode == "local":
         result["next_steps"] = [
             "安装 ffmpeg 和本地 Whisper 依赖",
@@ -117,10 +142,14 @@ def main(argv: list[str] | None = None) -> int:
         if detected["shared_profile_available"]:
             print("✅ 已发现可复用的抖音登录 profile；不会复制或输出 Cookie。")
         if mode == "cloud" and detected["cloud_asr_configured"]:
-            print("✅ 已检测到云端 ASR 配置；运行时仍会以当前环境为准。")
-        elif mode == "index":
-            print("✅ 当前选择不会调用 ASR，也不会下载视频。")
-    return 0
+            print("✅ 已检测到至少一种云端 ASR Key；运行时仍以当前环境为准。")
+            if detected.get("siliconflow_configured"):
+                print("✅ SiliconFlow 已配置（抖音默认可用路径）。")
+            if detected.get("dashscope_configured"):
+                print("ℹ️ 百炼已配置（仅对可公网直链媒体走 URL ASR）。")
+        for step in result["next_steps"]:
+            print(f"→ {step}")
+    return 0 if result["status"] == "ready" else 1
 
 
 if __name__ == "__main__":

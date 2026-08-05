@@ -100,23 +100,91 @@ def transcribe_videos(
     return results, source
 
 
-def transcribe_video_cloud(video: Video) -> Transcript:
-    """Use the cloud ASR lane without invoking local Whisper.
+def _is_douyin_protected_media(url: str) -> bool:
+    """Douyin/ByteDance CDN URLs are not reliably fetchable by third-party ASR servers."""
+    lower = (url or "").lower()
+    markers = (
+        "douyinvod.com",
+        "douyin.com/",
+        "byteicdn.com",
+        "byteimg.com",
+        "snssdk.com",
+        "amemv.com",
+        "zjcdn.com",
+        "bytecdn.cn",
+        "ibytedtos.com",
+    )
+    return any(marker in lower for marker in markers)
 
-    It first attempts DashScope URL recognition without local media. If the
-    upstream rejects a large Douyin video, it uses an optional cloud-upload
-    provider with temporary media and removes it before returning.
+
+def cloud_asr_ready() -> bool:
+    """True when at least one usable cloud ASR key is present."""
+    ensure_runtime_env()
+    return bool(os.environ.get("SILICONFLOW_API_KEY") or os.environ.get("DASHSCOPE_API_KEY"))
+
+
+def transcribe_video_cloud(video: Video) -> Transcript:
+    """Cloud ASR without local Whisper.
+
+    Production truth for Douyin media (2026-08-05):
+    - Douyin CDN URLs almost always fail DashScope *URL* ASR (Aliyun cannot
+      download ``*.douyinvod.com``).
+    - The working path is SiliconFlow upload after a local download that sends
+      browser-like ``Referer: https://www.douyin.com/`` headers.
+    - DashScope URL mode remains useful only for genuinely public media URLs.
+
+    Order:
+    1. Douyin-protected media → SiliconFlow upload first; skip DashScope URL
+       unless ``DOUYIN_FORCE_DASHSCOPE_URL=1``.
+    2. Other media → DashScope URL first, then SiliconFlow upload.
     """
     ensure_runtime_env()
-    direct = _transcribe_dashscope_url(video)
-    if direct.status == TranscriptStatus.SUCCESS:
-        return direct
-    uploaded = _transcribe_siliconflow_upload(video)
-    if uploaded.status == TranscriptStatus.SUCCESS:
-        uploaded.err_msg = _join_errors(direct.err_msg, "DashScope URL ASR fell back to cloud upload")
-        return uploaded
-    uploaded.err_msg = _join_errors(direct.err_msg, uploaded.err_msg)
-    return uploaded
+    media_url = video.audio_url or video.video_url or ""
+    errors: list[str] = []
+
+    if _is_douyin_protected_media(media_url):
+        if os.environ.get("SILICONFLOW_API_KEY"):
+            uploaded = _transcribe_siliconflow_upload(video)
+            if uploaded.status == TranscriptStatus.SUCCESS:
+                return uploaded
+            errors.append(uploaded.err_msg or "siliconflow-cloud failed")
+        else:
+            errors.append(
+                "SILICONFLOW_API_KEY is required for Douyin CDN media "
+                "(DashScope URL ASR cannot fetch douyinvod)"
+            )
+        if os.environ.get("DOUYIN_FORCE_DASHSCOPE_URL") == "1" and os.environ.get("DASHSCOPE_API_KEY"):
+            direct = _transcribe_dashscope_url(video)
+            if direct.status == TranscriptStatus.SUCCESS:
+                return direct
+            errors.append(direct.err_msg or "dashscope-cloud failed")
+        elif os.environ.get("DASHSCOPE_API_KEY"):
+            errors.append(
+                "skipped DashScope URL ASR for Douyin CDN "
+                "(set DOUYIN_FORCE_DASHSCOPE_URL=1 to force)"
+            )
+        return _failed(video, "cloud-asr", _join_errors(*errors) or "cloud ASR failed for Douyin media")
+
+    # Non-Douyin / public media: URL ASR first, then upload fallback.
+    if os.environ.get("DASHSCOPE_API_KEY"):
+        direct = _transcribe_dashscope_url(video)
+        if direct.status == TranscriptStatus.SUCCESS:
+            return direct
+        errors.append(direct.err_msg or "dashscope-cloud failed")
+    if os.environ.get("SILICONFLOW_API_KEY"):
+        uploaded = _transcribe_siliconflow_upload(video)
+        if uploaded.status == TranscriptStatus.SUCCESS:
+            if errors:
+                uploaded.err_msg = _join_errors(*errors, "fell back to SiliconFlow upload")
+            return uploaded
+        errors.append(uploaded.err_msg or "siliconflow-cloud failed")
+    if not errors:
+        return _failed(
+            video,
+            "cloud-asr",
+            "configure SILICONFLOW_API_KEY (recommended for Douyin) and/or DASHSCOPE_API_KEY",
+        )
+    return _failed(video, "cloud-asr", _join_errors(*errors))
 
 
 def _transcribe_dashscope_url(video: Video) -> Transcript:
@@ -275,8 +343,22 @@ def _is_missing_configuration(transcript: Transcript) -> bool:
 
 
 def _download_media(url: str, destination: Path) -> None:
-    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urlopen(request, timeout=120) as response, destination.open("wb") as output:
+    # Douyin CDN (*.douyinvod.com) returns 403 without browser-like Referer/Origin.
+    # DashScope URL-mode still fails server-side (Aliyun cannot fetch CDN); upload/local paths need this.
+    request = Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.douyin.com/",
+            "Origin": "https://www.douyin.com",
+            "Accept": "*/*",
+        },
+    )
+    with urlopen(request, timeout=180) as response, destination.open("wb") as output:
         while chunk := response.read(1024 * 1024):
             output.write(chunk)
 
