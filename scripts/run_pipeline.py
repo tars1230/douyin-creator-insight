@@ -31,7 +31,12 @@ from quality_gate import run_quality_gate
 from browser_collector import collect_public_creator_sync
 from integration import probe_installation
 from runtime_env import ensure_runtime_env
-from setup_config import BAILIAN_API_KEY_GUIDE_URL, SILICONFLOW_CONSOLE_URL, load_setup_config
+from setup_config import (
+    BAILIAN_API_KEY_GUIDE_URL,
+    SILICONFLOW_CONSOLE_URL,
+    SILICONFLOW_REFERRAL_URL,
+    load_setup_config,
+)
 
 
 def run_pipeline(
@@ -421,15 +426,18 @@ def main(argv=None) -> int:
     silicon = bool(os.environ.get("SILICONFLOW_API_KEY"))
     dashscope = bool(os.environ.get("DASHSCOPE_API_KEY"))
     if not args.dry_run and transcript_mode == "cloud" and not (silicon or dashscope):
-        print("❌ 云端 ASR 尚未配置：请至少设置 SILICONFLOW_API_KEY（抖音推荐）或 DASHSCOPE_API_KEY。")
-        print("   抖音 CDN 媒体必须走 SiliconFlow 上传路径；百炼 URL ASR 拉不到 douyinvod。")
-        print(f"   SiliconFlow Key：{SILICONFLOW_CONSOLE_URL}")
-        print(f"   百炼申请说明（可选）：{BAILIAN_API_KEY_GUIDE_URL}")
-        print("   配置后重启当前 Agent/宿主进程，再运行；或明确选择 --transcript-mode local / index。")
-        print("   可先执行：python3 scripts/setup.py --transcript-mode cloud")
+        print("❌ 云端 ASR 尚未配置：请设置 SILICONFLOW_API_KEY（抖音推荐主路径）。")
+        print("   抖音 CDN 必须走 SiliconFlow 本机下载上传；百炼 URL ASR 拉不到 douyinvod。")
+        print(f"   ① 新用户推荐注册/登录：{SILICONFLOW_REFERRAL_URL}")
+        print(f"   ② 控制台创建 Key：{SILICONFLOW_CONSOLE_URL}")
+        print("   ③ export SILICONFLOW_API_KEY='…' 或写入 ~/.hermes/.env 后重启 Agent")
+        print(f"   百炼（可选，非抖音主路径）：{BAILIAN_API_KEY_GUIDE_URL}")
+        print("   或改 --transcript-mode local / index。可先：python3 scripts/setup.py --transcript-mode cloud")
         return 2
     if not args.dry_run and transcript_mode == "cloud" and not silicon and dashscope:
-        print("⚠️ 仅检测到 DASHSCOPE_API_KEY：对抖音 CDN 转写大概率失败。建议同时配置 SILICONFLOW_API_KEY。")
+        print("⚠️ 仅检测到 DASHSCOPE_API_KEY：对抖音 CDN 转写大概率失败。请补 SILICONFLOW_API_KEY。")
+        print(f"   推荐注册页：{SILICONFLOW_REFERRAL_URL}")
+        print(f"   控制台建 Key：{SILICONFLOW_CONSOLE_URL}")
     output_dir = args.output_dir or setup.get("output_dir", "./output/creator-insight")
     browser_profile = args.browser_profile or (Path(setup["browser_profile"]) if setup.get("browser_profile") else None)
 
