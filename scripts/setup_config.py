@@ -16,8 +16,28 @@ from runtime_env import ensure_runtime_env
 
 BAILIAN_API_KEY_GUIDE_URL = "https://help.aliyun.com/zh/model-studio/get-api-key"
 BAILIAN_CONSOLE_URL = "https://bailian.console.aliyun.com/cn-beijing/?tab=api"
+# 新用户优先走推荐注册页（带邀请参数），再回控制台建 Key
+SILICONFLOW_REFERRAL_URL = "https://cloud.siliconflow.cn/i/1srulim9"
 SILICONFLOW_CONSOLE_URL = "https://cloud.siliconflow.cn/account/ak"
 SILICONFLOW_DOCS_URL = "https://docs.siliconflow.cn/cn/api-reference/audio/create-audio-transcriptions"
+SILICONFLOW_PRICING_URL = "https://siliconflow.cn/pricing"
+
+
+def open_siliconflow_signup(*, ask: bool = True) -> bool:
+    """Interactive helper: open the referral signup page in the default browser."""
+    import sys
+    import webbrowser
+
+    if not sys.stdin.isatty():
+        return False
+    if ask:
+        answer = input("是否打开 SiliconFlow 推荐注册页？[Y/n] ").strip().lower()
+        if answer in {"n", "no"}:
+            return False
+    try:
+        return bool(webbrowser.open(SILICONFLOW_REFERRAL_URL))
+    except Exception:
+        return False
 CONFIG_ENV = "DOUYIN_CREATOR_CONFIG"
 MODES = frozenset({"cloud", "local", "index"})
 SECRET_LIKE_KEYS = (

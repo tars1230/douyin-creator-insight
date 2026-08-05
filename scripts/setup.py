@@ -12,8 +12,11 @@ from setup_config import (
     MODES,
     SILICONFLOW_CONSOLE_URL,
     SILICONFLOW_DOCS_URL,
+    SILICONFLOW_PRICING_URL,
+    SILICONFLOW_REFERRAL_URL,
     detect_existing_setup,
     mode_label,
+    open_siliconflow_signup,
     save_setup_config,
 )
 
@@ -32,21 +35,31 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_cloud_action(detected: dict | None = None) -> None:
+def _print_cloud_action(detected: dict | None = None, *, offer_open: bool = False) -> None:
     detected = detected or {}
-    print("☁️ 云端 ASR 说明（抖音真实可用路径）：")
-    print("  1) 【推荐】SILICONFLOW_API_KEY — 本机带 Referer 下载后上传 SenseVoiceSmall")
-    print(f"     控制台创建 Key：{SILICONFLOW_CONSOLE_URL}")
-    print(f"     接口文档：{SILICONFLOW_DOCS_URL}")
-    print("     macOS/Linux：export SILICONFLOW_API_KEY='你的 Key'")
-    print("  2) 【可选】DASHSCOPE_API_KEY — 百炼 URL ASR，仅适合第三方可公网直链的媒体")
-    print("     抖音 CDN（*.douyinvod.com）侧阿里云拉不到，URL 模式会失败，不是 Key 坏了")
-    print(f"     申请说明：{BAILIAN_API_KEY_GUIDE_URL}")
+    print("☁️ 云端 ASR 配置（按顺序做，约 2 分钟）：")
+    print("  【推荐主路径】SiliconFlow SenseVoiceSmall（抖音 CDN 唯一默认可用）")
+    print("  步骤：")
+    print(f"    ① 打开推荐注册/登录页（新用户走这里）：{SILICONFLOW_REFERRAL_URL}")
+    print(f"    ② 登录后到控制台创建 API Key：{SILICONFLOW_CONSOLE_URL}")
+    print("    ③ 本机写入环境变量（不要发聊天、不要写进仓库）：")
+    print("       export SILICONFLOW_API_KEY='你的 Key'")
+    print("       # 或写入 ~/.hermes/.env / 本仓库 .env.local 后重启 Agent")
+    print(f"    ④ 价格参考：{SILICONFLOW_PRICING_URL}（SenseVoiceSmall 页上标注可能为免费，以账单为准）")
+    print(f"    ⑤ 接口文档：{SILICONFLOW_DOCS_URL}")
+    print("  【可选】DASHSCOPE_API_KEY — 仅第三方可公网直链；抖音 douyinvod 常失败，不替代上面")
+    print(f"     申请：{BAILIAN_API_KEY_GUIDE_URL}")
     print(f"     控制台：{BAILIAN_CONSOLE_URL}")
     if detected.get("siliconflow_configured"):
         print("✅ 已检测到 SILICONFLOW_API_KEY")
     else:
-        print("❌ 未检测到 SILICONFLOW_API_KEY（抖音口播转写通常需要它）")
+        print("❌ 未检测到 SILICONFLOW_API_KEY（选 cloud 模式时必须配）")
+        if offer_open:
+            opened = open_siliconflow_signup(ask=True)
+            if opened:
+                print(f"✅ 已尝试打开浏览器：{SILICONFLOW_REFERRAL_URL}")
+            else:
+                print(f"→ 请手动打开：{SILICONFLOW_REFERRAL_URL}")
     if detected.get("dashscope_configured"):
         print("ℹ️ 已检测到 DASHSCOPE_API_KEY（非抖音公网媒体可用）")
     print("不要把真实 Key 写进仓库或发到聊天。配置后重启已启动的宿主进程。")
@@ -110,22 +123,26 @@ def main(argv: list[str] | None = None) -> int:
     if mode == "cloud" and not detected["cloud_asr_configured"]:
         result["status"] = "action_required"
         result["next_steps"] = [
-            "申请并配置 SILICONFLOW_API_KEY（抖音推荐）",
-            SILICONFLOW_CONSOLE_URL,
-            "可选：DASHSCOPE_API_KEY（仅非抖音公网媒体 URL ASR）",
-            BAILIAN_API_KEY_GUIDE_URL,
+            "① 打开推荐注册页（新用户）：" + SILICONFLOW_REFERRAL_URL,
+            "② 控制台创建 SILICONFLOW_API_KEY：" + SILICONFLOW_CONSOLE_URL,
+            "③ export SILICONFLOW_API_KEY='…' 或写入 ~/.hermes/.env 后重启 Agent",
+            "可选：DASHSCOPE_API_KEY（仅非抖音公网媒体 URL ASR） " + BAILIAN_API_KEY_GUIDE_URL,
             "配置后重启宿主 Agent，再运行真实 pipeline",
         ]
+        result["siliconflow_referral_url"] = SILICONFLOW_REFERRAL_URL
+        result["siliconflow_console_url"] = SILICONFLOW_CONSOLE_URL
         if not args.json:
-            _print_cloud_action(detected)
+            _print_cloud_action(detected, offer_open=sys.stdin.isatty())
     elif mode == "cloud" and not detected.get("siliconflow_configured"):
         result["next_steps"] = [
             "已检测到 DASHSCOPE_API_KEY，但抖音 CDN 通常仍需 SILICONFLOW_API_KEY",
-            SILICONFLOW_CONSOLE_URL,
+            "推荐注册页：" + SILICONFLOW_REFERRAL_URL,
+            "控制台建 Key：" + SILICONFLOW_CONSOLE_URL,
         ]
+        result["siliconflow_referral_url"] = SILICONFLOW_REFERRAL_URL
         if not args.json:
             print("⚠️ 仅有百炼 Key 时，抖音口播转写大概率失败；请补 SILICONFLOW_API_KEY。")
-            _print_cloud_action(detected)
+            _print_cloud_action(detected, offer_open=sys.stdin.isatty())
     elif mode == "local":
         result["next_steps"] = [
             "安装 ffmpeg 和本地 Whisper 依赖",

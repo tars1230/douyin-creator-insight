@@ -1,6 +1,6 @@
 ---
 name: douyin-creator-insight
-version: 1.3.5
+version: 1.3.6
 description: 分析公开抖音创作者的视频主题、互动结构和代表内容，并输出 HTML、Markdown、JSON 报告。适用于研究某个抖音博主、拆解选题和内容结构；不用于收藏夹同步、私密账号或绕过平台访问控制。
 ---
 
@@ -14,7 +14,7 @@ description: 分析公开抖音创作者的视频主题、互动结构和代表�
 
 `douyin-creator-insight` 可独立安装和运行，`douyin-favorites-to-knowledge`（旧名/旧目录可能是 `douyin-knowledge-base-pipeline`）不是前置依赖。若两者都存在，本 skill 只复用已登录的 persistent browser profile 和 ASR 环境变量，绝不读取收藏记录、修改增量 metadata，或加入收藏 skill 的 23:00 任务。
 
-首次运行先执行 `python3 scripts/setup.py`。它只写非敏感偏好：`cloud`（云端 ASR）/ `local`（Whisper）/ `index`（只索引），以及可选 profile/output 位置；不保存 API key、cookie 或 token。若检测到已安装 `douyin-favorites-to-knowledge`，优先复用其已登录浏览器 profile 和转录偏好，但状态、账本、输出和 23:00 任务仍完全隔离。
+首次运行先执行 `python3 scripts/setup.py`。它只写非敏感偏好：`cloud`（云端 ASR）/ `local`（Whisper）/ `index`（只索引），以及可选 profile/output 位置；不保存 API key、cookie 或 token。若检测到已安装 `douyin-favorites-to-knowledge`，优先复用其已登录浏览器 profile 和转录偏好，但状态、账本、输出和 23:00 任务仍完全隔离。缺 Key 时 setup 会打印 **①②③ 逐步指引**，交互终端可询问是否**打开推荐注册页**。
 
 **云端 ASR 真相（抖音）**：抖音 CDN（`*.douyinvod.com` 等）带防盗链，**阿里云百炼 URL-ASR 服务端拉不到媒体**，会稳定失败——不是用户 Key 配错。公开 skill 的默认可用路径是：
 
@@ -23,10 +23,16 @@ description: 分析公开抖音创作者的视频主题、互动结构和代表�
 3. 至少配置上述之一才允许 `cloud` 真跑；**两者都缺**时停止，不下载、不静默切 Whisper。
 4. 云端都失败且用户允许 local fallback 时才进 Whisper；`index` 永不 ASR。
 
-SiliconFlow 控制台：`https://cloud.siliconflow.cn/account/ak`。百炼说明（可选）：`https://help.aliyun.com/zh/model-studio/get-api-key`。Key 放本机环境变量/Secret Manager，不要发聊天或进仓库。skill 自动读 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local`。运行前 `python3 scripts/integration.py`；共享 profile 被占用必须等待。报告写入独立 `<output-root>/creator-insight/`。
+**新用户拿 Key（必须按序，别自己乱搜）：**
+
+1. 打开推荐注册/登录页：https://cloud.siliconflow.cn/i/1srulim9  
+2. 控制台创建 API Key：https://cloud.siliconflow.cn/account/ak  
+3. `export SILICONFLOW_API_KEY='…'` 或写入 `~/.hermes/.env` / 仓库 `.env.local`，**重启 Agent**  
+4. 价格参考：https://siliconflow.cn/pricing（SenseVoiceSmall 可能标免费，以账单为准）
+
+百炼说明（可选）：`https://help.aliyun.com/zh/model-studio/get-api-key`。Key 放本机环境变量/Secret Manager，不要发聊天或进仓库。skill 自动读 shell、`~/.hermes/.env`、仓库 `.env` / `.env.local`。运行前 `python3 scripts/integration.py`；共享 profile 被占用必须等待。报告写入独立 `<output-root>/creator-insight/`。
 
 > **ASR 费用（默认 SenseVoiceSmall）**：截至 **2026-08-05**，硅基流动[官方价格页](https://siliconflow.cn/pricing)将 `FunAudioLLM/SenseVoiceSmall` 标注为 **免费**（同页 `TeleSpeechASR` 亦免费；TTS 另计）。需要 `SILICONFLOW_API_KEY`。价格会变，**不承诺永久免费**；以价格页与控制台账单为准。可选百炼 `qwen3-asr-flash` 另计费（与 SiliconFlow 账单分离），且对抖音 CDN 常失败。
-
 
 - **SiliconFlow 注册推荐链接**：[https://cloud.siliconflow.cn/i/1srulim9](https://cloud.siliconflow.cn/i/1srulim9)
 - Key 控制台：[https://cloud.siliconflow.cn/account/ak](https://cloud.siliconflow.cn/account/ak)
